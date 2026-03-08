@@ -6,6 +6,9 @@ const cors = require('cors')
 const morgan = require('morgan')
 
 const authRoutes = require('./src/routes/auth.routes')
+const barbershopRoutes = require('./src/routes/barbershop.routes')
+const barberRoutes = require('./src/routes/barber.routes')
+const serviceRoutes = require('./src/routes/service.routes')
 
 const app = express()
 
@@ -16,6 +19,9 @@ app.use(morgan('dev'))
 
 // Rutas
 app.use('/api/auth', authRoutes)
+app.use('/api/barbershops', barbershopRoutes)
+app.use('/api/barbers', barberRoutes)
+app.use('/api/services', serviceRoutes)
 
 // Ruta de prueba
 app.get('/', (req, res) => {
