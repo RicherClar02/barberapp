@@ -1,8 +1,14 @@
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
-const { getPrismaClient } = require('../lib/db')
+const { PrismaClient } = require('@prisma/client')
+const { PrismaPg } = require('@prisma/adapter-pg')
+const pg = require('pg')
 
-const prisma = getPrismaClient()
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL
+})
+const adapter = new PrismaPg(pool)
+const prisma = new PrismaClient({ adapter })
 
 const generateToken = (user) => {
   return jwt.sign(
