@@ -6,10 +6,272 @@
 
 generator client {
   provider = "prisma-client"
-  output   = "../generated/prisma"
+  output   = "../src/generated/prisma-js"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+}
+
+// ─── USUARIOS ───────────────────────────────────────────
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  password      String?
+  name          String
+  phone         String?
+  avatar        String?
+  role          Role     @default(CLIENT)
+  isVerified    Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  googleId      String?  @unique
+  facebookId    String?  @unique
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relaciones
+  appointments  Appointment[]
+  reviews       Review[]
+  ownedShops    Barbershop[]   @relation("ShopOwner")
+  barberProfile Barber?
+  notifications Notification[]
+  loyaltyPoints LoyaltyPoint[]
+
+  @@map("users")
+}
+
+enum Role {
+  CLIENT
+  OWNER
+  BARBER
+  ADMIN
+}
+
+// ─── BARBERÍAS ──────────────────────────────────────────
+model Barbershop {
+  id           String   @id @default(uuid())
+  name         String
+  description  String?
+  address      String
+  city         String
+  latitude     Float?
+  longitude    Float?
+  phone        String?
+  email        String?
+  instagram    String?
+  facebook     String?
+  logo         String?
+  coverImage   String?
+  isActive     Boolean  @default(true)
+  isVerified   Boolean  @default(false)
+  plan         Plan     @default(BASIC)
+  planExpiresAt DateTime?
+  ownerId      String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relaciones
+  owner        User         @relation("ShopOwner", fields: [ownerId], references: [id])
+  barbers      Barber[]
+  services     Service[]
+  appointments Appointment[]
+  reviews      Review[]
+  schedules    Schedule[]
+  photos       ShopPhoto[]
+
+  @@map("barbershops")
+}
+
+enum Plan {
+  BASIC
+  PREMIUM
+  ENTERPRISE
+}
+
+// ─── BARBEROS ───────────────────────────────────────────
+model Barber {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  barbershopId String
+  specialty    String?
+  bio          String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relaciones
+  user         User        @relation(fields: [userId], references: [id])
+  barbershop   Barbershop  @relation(fields: [barbershopId], references: [id])
+  appointments Appointment[]
+  reviews      Review[]
+
+  @@map("barbers")
+}
+
+// ─── SERVICIOS ──────────────────────────────────────────
+model Service {
+  id           String   @id @default(uuid())
+  barbershopId String
+  name         String
+  description  String?
+  price        Float
+  duration     Int      // duración en minutos
+  image        String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relaciones
+  barbershop   Barbershop    @relation(fields: [barbershopId], references: [id])
+  appointments Appointment[]
+
+  @@map("services")
+}
+
+// ─── CITAS ──────────────────────────────────────────────
+model Appointment {
+  id           String            @id @default(uuid())
+  clientId     String
+  barbershopId String
+  barberId     String
+  serviceId    String
+  date         DateTime
+  startTime    String            // "09:00"
+  endTime      String            // "09:30"
+  status       AppointmentStatus @default(PENDING)
+  totalPrice   Float
+  notes        String?
+  cancelReason String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  // Relaciones
+  client       User       @relation(fields: [clientId], references: [id])
+  barbershop   Barbershop @relation(fields: [barbershopId], references: [id])
+  barber       Barber     @relation(fields: [barberId], references: [id])
+  service      Service    @relation(fields: [serviceId], references: [id])
+  payment      Payment?
+  review       Review?
+
+  @@map("appointments")
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+// ─── PAGOS ──────────────────────────────────────────────
+model Payment {
+  id            String        @id @default(uuid())
+  appointmentId String        @unique
+  amount        Float
+  method        PaymentMethod
+  status        PaymentStatus @default(PENDING)
+  transactionId String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relaciones
+  appointment   Appointment @relation(fields: [appointmentId], references: [id])
+
+  @@map("payments")
+}
+
+enum PaymentMethod {
+  CARD
+  PSE
+  NEQUI
+  DAVIPLATA
+  CASH
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+// ─── RESEÑAS ────────────────────────────────────────────
+model Review {
+  id           String   @id @default(uuid())
+  clientId     String
+  barbershopId String
+  barberId     String?
+  appointmentId String  @unique
+  rating       Int      // 1 al 5
+  comment      String?
+  createdAt    DateTime @default(now())
+
+  // Relaciones
+  client       User        @relation(fields: [clientId], references: [id])
+  barbershop   Barbershop  @relation(fields: [barbershopId], references: [id])
+  barber       Barber?     @relation(fields: [barberId], references: [id])
+  appointment  Appointment @relation(fields: [appointmentId], references: [id])
+
+  @@map("reviews")
+}
+
+// ─── HORARIOS ───────────────────────────────────────────
+model Schedule {
+  id           String   @id @default(uuid())
+  barbershopId String
+  dayOfWeek    Int      // 0=Domingo, 1=Lunes ... 6=Sábado
+  openTime     String   // "08:00"
+  closeTime    String   // "20:00"
+  isOpen       Boolean  @default(true)
+
+  // Relaciones
+  barbershop   Barbershop @relation(fields: [barbershopId], references: [id])
+
+  @@map("schedules")
+}
+
+// ─── FOTOS DE BARBERÍA ──────────────────────────────────
+model ShopPhoto {
+  id           String   @id @default(uuid())
+  barbershopId String
+  url          String
+  caption      String?
+  createdAt    DateTime @default(now())
+
+  // Relaciones
+  barbershop   Barbershop @relation(fields: [barbershopId], references: [id])
+
+  @@map("shop_photos")
+}
+
+// ─── NOTIFICACIONES ─────────────────────────────────────
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  body      String
+  type      String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  // Relaciones
+  user      User @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
+}
+
+// ─── PUNTOS DE FIDELIDAD ────────────────────────────────
+model LoyaltyPoint {
+  id          String   @id @default(uuid())
+  userId      String
+  points      Int
+  description String
+  createdAt   DateTime @default(now())
+
+  // Relaciones
+  user        User @relation(fields: [userId], references: [id])
+
+  @@map("loyalty_points")
 }
