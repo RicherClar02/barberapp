@@ -14,21 +14,37 @@
   "type": "commonjs",
   "dependencies": {
     "@prisma/adapter-pg": "^7.4.2",
-    "@prisma/client": "^7.4.2",
+    "@prisma/client": "^7.8.0",
     "bcryptjs": "^3.0.3",
+    "cloudinary": "^2.10.0",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
+    "epayco-sdk-node": "^1.4.4",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.4.1",
     "express-validator": "^7.3.1",
+    "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "morgan": "^1.10.1",
+    "multer": "^2.1.1",
+    "node-cron": "^4.2.1",
+    "passport": "^0.7.0",
+    "passport-facebook": "^3.0.0",
+    "passport-google-oauth20": "^2.0.0",
     "pg": "^8.20.0",
-    "prisma": "^7.4.2"
+    "prisma": "^7.8.0",
+    "stripe": "^22.1.0",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
+    "twilio": "^6.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"
   },
   "prisma": {
     "schema": "prisma/schema.prisma"
+  },
+  "overrides": {
+    "@hono/node-server": ">=1.19.13"
   }
 }

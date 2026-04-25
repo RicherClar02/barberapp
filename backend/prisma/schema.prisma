@@ -28,13 +28,18 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  whatsappNumber String?
+
   // Relaciones
-  appointments  Appointment[]
-  reviews       Review[]
-  ownedShops    Barbershop[]   @relation("ShopOwner")
-  barberProfile Barber?
-  notifications Notification[]
-  loyaltyPoints LoyaltyPoint[]
+  appointments            Appointment[]
+  reviews                 Review[]
+  ownedShops              Barbershop[]              @relation("ShopOwner")
+  barberProfile           Barber?
+  notifications           Notification[]
+  loyaltyPoints           LoyaltyPoint[]
+  clientLoyalties         ClientLoyalty[]
+  notificationPreference  NotificationPreference?
+  waitlists               Waitlist[]
 
   @@map("users")
 }
@@ -63,6 +68,7 @@ model Barbershop {
   coverImage   String?
   isActive     Boolean  @default(true)
   isVerified   Boolean  @default(false)
+  isFeatured   Boolean  @default(false)
   plan         Plan     @default(BASIC)
   planExpiresAt DateTime?
   ownerId      String
@@ -70,13 +76,19 @@ model Barbershop {
   updatedAt    DateTime @updatedAt
 
   // Relaciones
-  owner        User         @relation("ShopOwner", fields: [ownerId], references: [id])
-  barbers      Barber[]
-  services     Service[]
-  appointments Appointment[]
-  reviews      Review[]
-  schedules    Schedule[]
-  photos       ShopPhoto[]
+  owner           User              @relation("ShopOwner", fields: [ownerId], references: [id])
+  barbers         Barber[]
+  services        Service[]
+  appointments    Appointment[]
+  reviews         Review[]
+  schedules       Schedule[]
+  photos          ShopPhoto[]
+  config          BarberShopConfig?
+  clientLoyalties ClientLoyalty[]
+  advertisements  Advertisement[]
+  waitlists       Waitlist[]
+  subscription    Subscription?
+  offers          Offer[]
 
   @@map("barbershops")
 }
@@ -84,7 +96,7 @@ model Barbershop {
 enum Plan {
   BASIC
   PREMIUM
-  ENTERPRISE
+  STANDARD
 }
 
 // ─── BARBEROS ───────────────────────────────────────────
@@ -103,6 +115,7 @@ model Barber {
   barbershop   Barbershop  @relation(fields: [barbershopId], references: [id])
   appointments Appointment[]
   reviews      Review[]
+  waitlists    Waitlist[]
 
   @@map("barbers")
 }
@@ -123,6 +136,8 @@ model Service {
   // Relaciones
   barbershop   Barbershop    @relation(fields: [barbershopId], references: [id])
   appointments Appointment[]
+  waitlists    Waitlist[]
+  offers       Offer[]
 
   @@map("services")
 }
@@ -273,4 +288,174 @@ model LoyaltyPoint {
   user        User @relation(fields: [userId], references: [id])
 
   @@map("loyalty_points")
+}
+
+// ─── CONFIGURACIÓN DE BARBERÍA ─────────────────────────
+model BarberShopConfig {
+  id                    String     @id @default(uuid())
+  barbershopId          String     @unique
+  barberPercentage      Float      @default(60)   // % que se lleva el barbero
+  shopPercentage        Float      @default(40)   // % que se lleva la barbería
+  loyaltyEnabled        Boolean    @default(true)
+  cutsForFreeService    Int        @default(10)   // cada cuántos cortes hay uno gratis
+  cancellationWindowMin Int        @default(60)   // minutos antes para cancelar sin penalidad
+  appointmentDuration   Int        @default(40)   // duración fija en minutos
+  toleranceMinutes      Int        @default(10)   // tolerancia de llegada
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+
+  // Relaciones
+  barbershop            Barbershop @relation(fields: [barbershopId], references: [id])
+
+  @@map("barbershop_configs")
+}
+
+// ─── FIDELIZACIÓN DE CLIENTES ──────────────────────────
+model ClientLoyalty {
+  id             String      @id @default(uuid())
+  clientId       String
+  barbershopId   String
+  totalCuts      Int         @default(0)
+  freeCutsEarned Int         @default(0)
+  freeCutsUsed   Int         @default(0)
+  lastVisit      DateTime?
+
+  // Relaciones
+  client         User        @relation(fields: [clientId], references: [id])
+  barbershop     Barbershop  @relation(fields: [barbershopId], references: [id])
+
+  @@unique([clientId, barbershopId])
+  @@map("client_loyalties")
+}
+
+// ─── PUBLICIDAD ────────────────────────────────────────
+model Advertisement {
+  id            String     @id @default(uuid())
+  barbershopId  String
+  title         String
+  mediaUrl      String     // URL del video o imagen en Cloudinary
+  mediaType     String     // "video" o "image"
+  isActive      Boolean    @default(true)
+  startsAt      DateTime
+  endsAt        DateTime
+  isPaid        Boolean    @default(false)
+  amountPaid    Float?
+  clicks        Int        @default(0)
+  views         Int        @default(0)
+  createdAt     DateTime   @default(now())
+
+  // Relaciones
+  barbershop    Barbershop @relation(fields: [barbershopId], references: [id])
+
+  @@map("advertisements")
+}
+
+// ─── PREFERENCIAS DE NOTIFICACIÓN ──────────────────────
+model NotificationPreference {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  whatsappNumber  String?
+  preferWhatsapp  Boolean  @default(false)
+  preferPush      Boolean  @default(true)
+  reminderEnabled Boolean  @default(true)
+
+  // Relaciones
+  user            User     @relation(fields: [userId], references: [id])
+
+  @@map("notification_preferences")
+}
+
+// ─── LISTA DE ESPERA ────────────────────────────────────
+model Waitlist {
+  id            String         @id @default(uuid())
+  barbershopId  String
+  barberId      String
+  serviceId     String
+  clientId      String
+  date          DateTime
+  preferredTime String?
+  status        WaitlistStatus @default(WAITING)
+  position      Int
+  notifiedAt    DateTime?
+  createdAt     DateTime       @default(now())
+
+  // Relaciones
+  barbershop    Barbershop @relation(fields: [barbershopId], references: [id])
+  barber        Barber     @relation(fields: [barberId], references: [id])
+  service       Service    @relation(fields: [serviceId], references: [id])
+  client        User       @relation(fields: [clientId], references: [id])
+
+  @@unique([clientId, barberId, date])
+  @@map("waitlists")
+}
+
+enum WaitlistStatus {
+  WAITING
+  NOTIFIED
+  CONFIRMED
+  EXPIRED
+}
+
+// ─── SUSCRIPCIONES ──────────────────────────────────────
+model Subscription {
+  id             String             @id @default(uuid())
+  barbershopId   String             @unique
+  plan           Plan               @default(BASIC)
+  status         SubscriptionStatus @default(ACTIVE)
+  startDate      DateTime           @default(now())
+  endDate        DateTime
+  autoRenew      Boolean            @default(true)
+  amountPaid     Float
+  paymentMethod  String?
+  transactionRef String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  // Relaciones
+  barbershop     Barbershop @relation(fields: [barbershopId], references: [id])
+
+  @@map("subscriptions")
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  PENDING_PAYMENT
+}
+
+// ─── OFERTAS ────────────────────────────────────────────
+model Offer {
+  id            String     @id @default(uuid())
+  barbershopId  String
+  title         String
+  description   String?
+  discountPct   Float
+  discountFixed Float?
+  serviceId     String?
+  validFrom     DateTime
+  validUntil    DateTime
+  maxUses       Int?
+  currentUses   Int        @default(0)
+  code          String?    @unique
+  isActive      Boolean    @default(true)
+  createdAt     DateTime   @default(now())
+
+  // Relaciones
+  barbershop    Barbershop @relation(fields: [barbershopId], references: [id])
+  service       Service?   @relation(fields: [serviceId], references: [id])
+
+  @@map("offers")
+}
+
+// ─── LOG DE BÚSQUEDAS ───────────────────────────────────
+model SearchLog {
+  id        String   @id @default(uuid())
+  query     String
+  city      String?
+  userId    String?
+  results   Int
+  createdAt DateTime @default(now())
+
+  @@map("search_logs")
 }

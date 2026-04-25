@@ -10,22 +10,27 @@ const pool = new pg.Pool({
 const adapter = new PrismaPg(pool)
 const prisma = new PrismaClient({ adapter })
 
-// Convierte un usuario existente en barbero de una barbería
-// El dueño llama a este endpoint para agregar un barbero a su negocio
-// El usuario ya debe estar registrado en la app con rol BARBER
-const addBarber = async ({ userId, barbershopId, specialty, bio }, ownerId) => {
+const BARBER_LIMITS = { BASIC: 1, STANDARD: 3, PREMIUM: Infinity }
 
-  // Verificamos que la barbería le pertenece al dueño que hace la petición
+// Convierte un usuario existente en barbero de una barbería
+const addBarber = async ({ userId, barbershopId, specialty, bio }, ownerId) => {
   const barbershop = await prisma.barbershop.findUnique({ where: { id: barbershopId } })
   if (!barbershop) throw new Error('Barbería no encontrada')
   if (barbershop.ownerId !== ownerId) throw new Error('No tienes permiso sobre esta barbería')
 
-  // Verificamos que el usuario existe y tiene rol BARBER
+  // Validar límite de barberos según plan
+  const limit = BARBER_LIMITS[barbershop.plan] ?? 1
+  if (limit !== Infinity) {
+    const activeCount = await prisma.barber.count({ where: { barbershopId, isActive: true } })
+    if (activeCount >= limit) {
+      throw new Error(`Tu plan ${barbershop.plan} solo permite ${limit} barbero(s) activo(s). Actualiza tu plan para agregar más.`)
+    }
+  }
+
   const user = await prisma.user.findUnique({ where: { id: userId } })
   if (!user) throw new Error('Usuario no encontrado')
   if (user.role !== 'BARBER') throw new Error('El usuario debe tener rol de Barbero')
 
-  // Verificamos que no esté ya registrado en esa barbería
   const existing = await prisma.barber.findFirst({ where: { userId, barbershopId } })
   if (existing) throw new Error('Este barbero ya pertenece a la barbería')
 

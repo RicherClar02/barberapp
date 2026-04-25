@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(timeout 8 node:*)",
+      "Bash(node server.js)",
+      "Bash(kill %1)",
+      "Bash(wait)",
+      "Bash(npx prisma *)",
+      "Bash(PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"si\" npx prisma migrate reset --force)",
+      "Bash(node *)",
+      "Bash(netstat -ano)",
+      "Bash(npm create *)",
+      "Bash(npx tailwindcss *)",
+      "Bash(npx vite *)",
+      "Bash(timeout 8 npm run dev)",
+      "Bash(npm run *)"
+    ]
+  }
+}
