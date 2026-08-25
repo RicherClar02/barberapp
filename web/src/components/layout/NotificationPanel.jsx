@@ -31,12 +31,12 @@ export default function NotificationPanel({ onClose }) {
 
   const { mutate: markOne } = useMutation({
     mutationFn: (id) => api.put(`/api/notifications/${id}/read`),
-    onSuccess: () => qc.invalidateQueries(['notifications']),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
   })
 
   const { mutate: markAll } = useMutation({
     mutationFn: () => api.put('/api/notifications/read-all'),
-    onSuccess: () => qc.invalidateQueries(['notifications']),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
   })
 
   useEffect(() => {

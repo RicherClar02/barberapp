@@ -9,13 +9,10 @@ const useAuthStore = create(
       isAuthenticated: false,
 
       login: (user, token) => {
-        localStorage.setItem('token', token)
         set({ user, token, isAuthenticated: true })
       },
 
       logout: () => {
-        localStorage.removeItem('token')
-        localStorage.removeItem('user')
         set({ user: null, token: null, isAuthenticated: false })
       },
 
@@ -23,7 +20,7 @@ const useAuthStore = create(
         set((state) => ({ user: { ...state.user, ...userData } })),
     }),
     {
-      name: 'barberapp-auth',
+      name: 'estilo-auth',
       partialize: (state) => ({ user: state.user, token: state.token, isAuthenticated: state.isAuthenticated }),
     }
   )

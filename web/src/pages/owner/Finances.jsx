@@ -1,9 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts'
-import { format, subDays } from 'date-fns'
-import { es } from 'date-fns/locale'
-import { Download, TrendingUp, TrendingDown } from 'lucide-react'
+import { Download, TrendingUp, TrendingDown, Printer } from 'lucide-react'
 import toast from 'react-hot-toast'
 import api from '../../api/axios'
 import Card from '../../components/ui/Card'
@@ -65,7 +63,7 @@ export default function OwnerFinances() {
 
   const { mutate: refundPayment, isPending: refunding } = useMutation({
     mutationFn: (paymentId) => api.post(`/api/payments/${paymentId}/refund`),
-    onSuccess: () => { toast.success('Reembolso procesado'); qc.invalidateQueries(['payments', shopId]) },
+    onSuccess: () => { toast.success('Reembolso procesado'); qc.invalidateQueries({ queryKey: ['payments', shopId] }) },
     onError: (err) => toast.error(err.response?.data?.message || 'Error al reembolsar'),
   })
 
@@ -77,15 +75,19 @@ export default function OwnerFinances() {
 
   const pendingRefunds = payments.filter(p => p.status === 'REFUND_PENDING')
 
-  // Chart data — last 30 days with mock fallback
-  const chartData = Array.from({ length: 30 }, (_, i) => {
-    const d = subDays(new Date(), 29 - i)
-    return {
-      date: format(d, 'd/MM'),
-      barberia: Math.floor(Math.random() * 80000 + 20000),
-      barberos: Math.floor(Math.random() * 120000 + 30000),
-    }
-  })
+  const chartData = (earnings.daily || []).map(d => ({
+    date: d.day,
+    barberia: d.shopEarnings,
+    barberos: d.barberEarnings,
+  }))
+
+  const chartTitle = period === 'today'
+    ? 'Ingresos por hora (hoy)'
+    : period === 'week'
+      ? 'Ingresos últimos 7 días'
+      : 'Ingresos últimos 30 días'
+
+  const xAxisInterval = period === 'week' ? 0 : 4
 
   const vsLastPeriod = earnings.vsLastPeriod || null
   const isUp = vsLastPeriod && !vsLastPeriod.startsWith('-')
@@ -116,14 +118,19 @@ export default function OwnerFinances() {
 
   return (
     <div className="space-y-6">
-      {/* Period Tabs */}
-      <div className="flex gap-1 bg-white rounded-xl border border-gray-soft p-1 w-fit">
-        {PERIODS.map(p => (
-          <button key={p.key} onClick={() => setPeriod(p.key)}
-            className={`px-5 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer ${period === p.key ? 'bg-primary text-white' : 'text-secondary hover:bg-cream'}`}>
-            {p.label}
-          </button>
-        ))}
+      {/* Header row */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex gap-1 bg-white rounded-xl border border-[rgba(74,44,10,0.08)] p-1 w-fit">
+          {PERIODS.map(p => (
+            <button key={p.key} onClick={() => setPeriod(p.key)}
+              className={`px-5 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer ${period === p.key ? 'bg-primary text-white' : 'text-muted hover:bg-cream'}`}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <Button size="sm" variant="outline" className="no-print" onClick={() => window.print()}>
+          <Printer size={13} /> Imprimir reporte
+        </Button>
       </div>
 
       {/* Summary Cards */}
@@ -149,11 +156,11 @@ export default function OwnerFinances() {
       )}
 
       {/* Income Chart */}
-      <Card title="Ingresos últimos 30 días">
+      <Card title={chartTitle}>
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#E8E0D8" />
-            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#8B5E3C' }} interval={4} />
+            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#8B5E3C' }} interval={xAxisInterval} />
             <YAxis tick={{ fontSize: 10, fill: '#8B5E3C' }} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
             <Tooltip formatter={(v, n) => [formatCurrency(v), n === 'barberia' ? 'Barbería' : 'Barberos']} />
             <Legend formatter={v => v === 'barberia' ? 'Barbería' : 'Barberos'} />

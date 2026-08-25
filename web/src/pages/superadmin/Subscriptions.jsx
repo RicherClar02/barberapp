@@ -35,10 +35,10 @@ export default function SuperSubscriptions() {
   const summaryStats = data?.stats || {}
 
   const { mutate: updateSub, isPending: updating } = useMutation({
-    mutationFn: ({ id, ...body }) => api.put(`/api/subscriptions/${id}`, body),
+    mutationFn: ({ id, ...body }) => api.put(`/api/admin/subscriptions/${id}/activate`, body),
     onSuccess: () => {
       toast.success('Suscripción actualizada')
-      qc.invalidateQueries(['admin-subscriptions'])
+      qc.invalidateQueries({ queryKey: ['admin-subscriptions'] })
       setChangePlanSub(null)
       setCancelConfirm(null)
     },
@@ -46,8 +46,8 @@ export default function SuperSubscriptions() {
   })
 
   const { mutate: activateSub, isPending: activating } = useMutation({
-    mutationFn: (id) => api.put(`/api/subscriptions/${id}/activate`),
-    onSuccess: () => { toast.success('Suscripción activada'); qc.invalidateQueries(['admin-subscriptions']) },
+    mutationFn: (id) => api.put(`/api/admin/subscriptions/${id}/activate`),
+    onSuccess: () => { toast.success('Suscripción activada'); qc.invalidateQueries({ queryKey: ['admin-subscriptions'] }) },
     onError: (err) => toast.error(err.response?.data?.message || 'Error'),
   })
 

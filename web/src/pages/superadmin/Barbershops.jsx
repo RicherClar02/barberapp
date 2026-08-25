@@ -41,7 +41,7 @@ export default function SuperBarbershops() {
     mutationFn: ({ id, ...body }) => api.put(`/api/barbershops/${id}`, body),
     onSuccess: () => {
       toast.success('Barbería actualizada')
-      qc.invalidateQueries(['admin-barbershops'])
+      qc.invalidateQueries({ queryKey: ['admin-barbershops'] })
       setChangePlanShop(null)
       setToggleConfirm(null)
     },

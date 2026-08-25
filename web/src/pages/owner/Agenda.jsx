@@ -67,7 +67,7 @@ export default function OwnerAgenda() {
     mutationFn: ({ id, action }) => api.put(`/api/appointments/${id}/${action}`),
     onSuccess: () => {
       toast.success('Cita actualizada')
-      qc.invalidateQueries(['appointments', shopId, dateStr])
+      qc.invalidateQueries({ queryKey: ['appointments', shopId, dateStr] })
       setSelectedAppt(null)
       setConfirm(null)
     },

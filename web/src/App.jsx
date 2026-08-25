@@ -1,9 +1,12 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
+import { useEffect, useState } from 'react'
 import useAuthStore from './store/authStore'
+import { roleHome } from './utils/roleHome'
 import Layout from './components/layout/Layout'
 import Login from './pages/auth/Login'
+import NotFound from './pages/NotFound'
 
 // Owner pages
 import OwnerDashboard from './pages/owner/Dashboard'
@@ -15,6 +18,13 @@ import OwnerFinances from './pages/owner/Finances'
 import OwnerOffers from './pages/owner/Offers'
 import OwnerAdvertising from './pages/owner/Advertising'
 
+// Barber pages
+import BarberAgenda from './pages/barber/Agenda'
+import BarberCalendar from './pages/barber/Calendar'
+import BarberEarnings from './pages/barber/Earnings'
+import BarberAppointments from './pages/barber/Appointments'
+import BarberMyCard from './pages/barber/MyCard'
+
 // Superadmin pages
 import SuperDashboard from './pages/superadmin/Dashboard'
 import SuperBarbershops from './pages/superadmin/Barbershops'
@@ -24,6 +34,14 @@ import SuperAdvertising from './pages/superadmin/Advertising'
 
 // Shared pages
 import Profile from './pages/shared/Profile'
+
+// Public pages — accesibles sin iniciar sesión. Las tiendas exigen URLs
+// públicas para términos, privacidad y eliminación de cuenta.
+import Landing from './pages/public/Landing'
+import PublicTerms from './pages/public/Terms'
+import PublicPrivacy from './pages/public/Privacy'
+import PublicCookies from './pages/public/Cookies'
+import PublicDeleteAccount from './pages/public/DeleteAccount'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30000 } },
@@ -46,17 +64,68 @@ function ComingSoon() {
   )
 }
 
+function GlobalShortcuts() {
+  const [searchOpen, setSearchOpen] = useState(false)
+
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        setSearchOpen(o => !o)
+      }
+      if (e.key === 'Escape') setSearchOpen(false)
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
+
+  if (!searchOpen) return null
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[100] flex items-start justify-center pt-[20vh]"
+      onClick={() => setSearchOpen(false)}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-3 p-4 border-b border-gray-soft">
+          <span className="text-secondary">🔍</span>
+          <input autoFocus placeholder="Buscar clientes, citas, barberos..."
+            className="flex-1 text-sm outline-none text-black-soft"
+            onKeyDown={e => e.key === 'Escape' && setSearchOpen(false)} />
+          <kbd className="text-xs text-secondary border border-gray-soft rounded px-1.5 py-0.5">Esc</kbd>
+        </div>
+        <div className="p-4 text-center text-sm text-secondary">
+          Escribe para buscar en toda la aplicación
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   const { isAuthenticated, user } = useAuthStore()
-  const defaultPath = user?.role === 'ADMIN' ? '/superadmin/dashboard' : user?.role === 'OWNER' ? '/owner/dashboard' : '/barber/agenda'
+  // Sesión válida = autenticada Y con un rol que tiene panel web. Una sesión
+  // vieja de CLIENT no debe redirigir desde /login (sería un bucle).
+  const home = roleHome(user?.role)
+  const hasPanel = isAuthenticated && !!home
 
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Toaster position="top-right" toastOptions={{ style: { fontFamily: 'Inter, sans-serif', borderRadius: '10px' } }} />
+        <GlobalShortcuts />
         <Routes>
-          <Route path="/login" element={isAuthenticated ? <Navigate to={defaultPath} replace /> : <Login />} />
+          {/* ─── Públicas: sin sesión, sin sidebar ─── */}
+          <Route path="/" element={hasPanel ? <Navigate to={home} replace /> : <Landing />} />
+          <Route path="/terminos" element={<PublicTerms />} />
+          <Route path="/privacidad" element={<PublicPrivacy />} />
+          <Route path="/cookies" element={<PublicCookies />} />
+          {/* /confirmar es la ruta del enlace que llega por correo */}
+          <Route path="/eliminar-cuenta" element={<PublicDeleteAccount />} />
+          <Route path="/eliminar-cuenta/confirmar" element={<PublicDeleteAccount />} />
 
+          {/* ─── Autenticación ─── */}
+          <Route path="/login" element={hasPanel ? <Navigate to={home} replace /> : <Login />} />
+
+          {/* ─── Privadas: redirigen a /login sin sesión ─── */}
           {/* Owner */}
           <Route path="/owner/dashboard" element={<ProtectedRoute roles={['OWNER']}><OwnerDashboard /></ProtectedRoute>} />
           <Route path="/owner/barbers" element={<ProtectedRoute roles={['OWNER']}><OwnerBarbers /></ProtectedRoute>} />
@@ -69,6 +138,11 @@ export default function App() {
           <Route path="/owner/*" element={<ProtectedRoute roles={['OWNER']}><ComingSoon /></ProtectedRoute>} />
 
           {/* Barber */}
+          <Route path="/barber/agenda" element={<ProtectedRoute roles={['BARBER']}><BarberAgenda /></ProtectedRoute>} />
+          <Route path="/barber/calendar" element={<ProtectedRoute roles={['BARBER']}><BarberCalendar /></ProtectedRoute>} />
+          <Route path="/barber/earnings" element={<ProtectedRoute roles={['BARBER']}><BarberEarnings /></ProtectedRoute>} />
+          <Route path="/barber/appointments" element={<ProtectedRoute roles={['BARBER']}><BarberAppointments /></ProtectedRoute>} />
+          <Route path="/barber/card" element={<ProtectedRoute roles={['BARBER']}><BarberMyCard /></ProtectedRoute>} />
           <Route path="/barber/*" element={<ProtectedRoute roles={['BARBER']}><ComingSoon /></ProtectedRoute>} />
 
           {/* Superadmin */}
@@ -82,8 +156,7 @@ export default function App() {
           {/* Shared */}
           <Route path="/profile" element={<ProtectedRoute roles={['OWNER', 'BARBER', 'ADMIN']}><Profile /></ProtectedRoute>} />
 
-          <Route path="/" element={isAuthenticated ? <Navigate to={defaultPath} replace /> : <Navigate to="/login" replace />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>

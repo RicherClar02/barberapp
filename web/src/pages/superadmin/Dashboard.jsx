@@ -1,5 +1,6 @@
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts'
+import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { format, subMonths } from 'date-fns'
 import { es } from 'date-fns/locale'
 import api from '../../api/axios'
@@ -12,7 +13,7 @@ const PLAN_COLORS = { BASIC: '#8B5E3C', STANDARD: '#C49A6C', PREMIUM: '#4A2C0A' 
 export default function SuperAdminDashboard() {
   const { data: platform, isLoading } = useQuery({
     queryKey: ['platform-analytics'],
-    queryFn: () => api.get('/api/analytics/admin/platform').then(r => r.data),
+    queryFn: () => api.get('/api/analytics/platform').then(r => r.data),
   })
 
   const stats = platform?.stats || platform || {}
@@ -20,18 +21,18 @@ export default function SuperAdminDashboard() {
   const subscriptionStats = platform?.subscriptionStats || {}
 
   const pieData = [
-    { name: 'Basic', value: subscriptionStats.byPlan?.BASIC || 12, color: PLAN_COLORS.BASIC },
-    { name: 'Standard', value: subscriptionStats.byPlan?.STANDARD || 28, color: PLAN_COLORS.STANDARD },
-    { name: 'Premium', value: subscriptionStats.byPlan?.PREMIUM || 8, color: PLAN_COLORS.PREMIUM },
+    { name: 'Basic', value: subscriptionStats.byPlan?.BASIC || 0, color: PLAN_COLORS.BASIC },
+    { name: 'Standard', value: subscriptionStats.byPlan?.STANDARD || 0, color: PLAN_COLORS.STANDARD },
+    { name: 'Premium', value: subscriptionStats.byPlan?.PREMIUM || 0, color: PLAN_COLORS.PREMIUM },
   ]
 
-  const lineData = Array.from({ length: 6 }, (_, i) => {
+  const lineData = useMemo(() => Array.from({ length: 6 }, (_, i) => {
     const d = subMonths(new Date(), 5 - i)
     return {
       month: format(d, 'MMM', { locale: es }),
-      barberías: Math.floor(Math.random() * 15 + 3),
+      barberías: platform?.newShopsPerMonth?.[i] ?? 0,
     }
-  })
+  }), [platform])
 
   const STAT_ITEMS = [
     { label: 'Total barberías', value: stats.totalBarbershops || 0, icon: '🏪' },

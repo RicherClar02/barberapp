@@ -31,7 +31,7 @@ export default function SuperAdvertising() {
   const { data, isLoading } = useQuery({
     queryKey: ['admin-ads', filterStatus, page],
     queryFn: () => {
-      let url = `/api/ads?page=${page}&limit=15`
+      let url = `/api/admin/ads?page=${page}&limit=15`
       if (filterStatus) url += `&status=${filterStatus}`
       return api.get(url).then(r => r.data)
     },
@@ -41,20 +41,20 @@ export default function SuperAdvertising() {
   const total = data?.total || ads.length
 
   const { mutate: activateAd, isPending: activating } = useMutation({
-    mutationFn: ({ id, amount }) => api.put(`/api/ads/${id}/activate`, { amount }),
+    mutationFn: ({ id, amount }) => api.put(`/api/ads/${id}/activate`, { amountPaid: parseFloat(amount) || 0 }),
     onSuccess: () => {
       toast.success('Anuncio activado')
-      qc.invalidateQueries(['admin-ads'])
+      qc.invalidateQueries({ queryKey: ['admin-ads'] })
       setApproveAd(null)
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Error'),
   })
 
   const { mutate: rejectAdMutation, isPending: rejecting } = useMutation({
-    mutationFn: ({ id, reason }) => api.put(`/api/ads/${id}`, { status: 'REJECTED', rejectionReason: reason }),
+    mutationFn: ({ id }) => api.delete(`/api/ads/${id}`),
     onSuccess: () => {
       toast.success('Anuncio rechazado')
-      qc.invalidateQueries(['admin-ads'])
+      qc.invalidateQueries({ queryKey: ['admin-ads'] })
       setRejectAd(null)
       setRejectReason('')
     },
@@ -62,10 +62,10 @@ export default function SuperAdvertising() {
   })
 
   const { mutate: deactivateAd, isPending: deactivating } = useMutation({
-    mutationFn: (id) => api.put(`/api/ads/${id}`, { status: 'EXPIRED', isActive: false }),
+    mutationFn: (id) => api.delete(`/api/ads/${id}`),
     onSuccess: () => {
       toast.success('Anuncio desactivado')
-      qc.invalidateQueries(['admin-ads'])
+      qc.invalidateQueries({ queryKey: ['admin-ads'] })
       setDeactivateConfirm(null)
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Error'),
@@ -199,7 +199,7 @@ export default function SuperAdvertising() {
 
       {/* Reject Modal */}
       <Modal open={!!rejectAd} onClose={() => setRejectAd(null)} title="Rechazar anuncio"
-        footer={<><Button variant="ghost" onClick={() => setRejectAd(null)}>Cancelar</Button><Button variant="danger" onClick={() => rejectAdMutation({ id: rejectAd.id, reason: rejectReason })} loading={rejecting}>Rechazar</Button></>}>
+        footer={<><Button variant="ghost" onClick={() => setRejectAd(null)}>Cancelar</Button><Button variant="danger" onClick={() => rejectAdMutation({ id: rejectAd.id })} loading={rejecting}>Rechazar</Button></>}>
         {rejectAd && (
           <div className="space-y-3">
             <p className="text-sm text-secondary">Rechazar anuncio de <strong>{rejectAd.barbershop?.name}</strong></p>

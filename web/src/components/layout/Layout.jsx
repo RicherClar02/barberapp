@@ -1,6 +1,7 @@
 import Sidebar from './Sidebar'
 import Header from './Header'
 import { useLocation } from 'react-router-dom'
+import { useEffect } from 'react'
 
 const pageTitles = {
   '/owner/dashboard': 'Mi Dashboard',
@@ -12,9 +13,10 @@ const pageTitles = {
   '/owner/advertising': 'Publicidad',
   '/owner/settings': 'Configuración',
   '/barber/agenda': 'Mi Agenda',
-  '/barber/appointments': 'Mis Citas',
+  '/barber/calendar': 'Mi Calendario',
   '/barber/earnings': 'Mis Ganancias',
-  '/barber/profile': 'Mi Perfil',
+  '/barber/appointments': 'Mis Citas',
+  '/barber/card': 'Mi Tarjeta',
   '/superadmin/dashboard': 'Dashboard General',
   '/superadmin/barbershops': 'Barberías',
   '/superadmin/users': 'Usuarios',
@@ -26,7 +28,11 @@ const pageTitles = {
 
 export default function Layout({ children }) {
   const location = useLocation()
-  const title = pageTitles[location.pathname] || 'BarberApp'
+  const title = pageTitles[location.pathname]
+
+  useEffect(() => {
+    document.title = title ? `${title} | Estilo` : 'Estilo'
+  }, [title])
 
   return (
     <div className="flex min-h-screen bg-cream">

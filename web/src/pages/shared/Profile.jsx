@@ -1,4 +1,6 @@
 import { useState, useRef } from 'react'
+import { Link } from 'react-router-dom'
+import { FileText, Shield, Cookie, Download, Trash2 } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import api from '../../api/axios'
@@ -7,10 +9,44 @@ import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 
+// Derechos ARCO accesibles también desde el panel: los dueños y barberos no
+// usan la app móvil, así que este es su único punto de entrada a lo legal.
+const LEGAL_LINKS = [
+  { to: '/terminos', icon: FileText, label: 'Términos y Condiciones' },
+  { to: '/privacidad', icon: Shield, label: 'Política de Privacidad' },
+  { to: '/cookies', icon: Cookie, label: 'Política de Cookies' },
+]
+
 export default function Profile() {
   const { user, updateUser } = useAuthStore()
   const qc = useQueryClient()
   const avatarRef = useRef()
+  const [exporting, setExporting] = useState(false)
+
+  // Derecho de portabilidad: descarga el JSON con todos los datos del usuario.
+  const handleDataExport = async () => {
+    setExporting(true)
+    try {
+      const { data } = await api.get('/api/users/me/data-export')
+      const url = URL.createObjectURL(
+        new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      )
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `estilo-mis-datos-${new Date().toISOString().slice(0, 10)}.json`
+      link.click()
+      URL.revokeObjectURL(url)
+      toast.success('Tus datos se descargaron')
+    } catch (err) {
+      toast.error(
+        err.response?.status === 429
+          ? 'Alcanzaste el límite de descargas por hoy'
+          : 'No se pudieron obtener tus datos'
+      )
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const [form, setForm] = useState({
     name: user?.name || '',
@@ -35,7 +71,7 @@ export default function Profile() {
       const updated = res.data?.user || res.data
       if (updated) updateUser(updated)
       toast.success('Perfil actualizado')
-      qc.invalidateQueries(['profile'])
+      qc.invalidateQueries({ queryKey: ['profile'] })
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Error al guardar'),
   })
@@ -172,6 +208,44 @@ export default function Profile() {
           <div className="flex justify-end">
             <Button onClick={handleChangePw} loading={changingPw}>Cambiar contraseña</Button>
           </div>
+        </div>
+      </Card>
+
+      {/* Legal y privacidad */}
+      <Card title="Legal y privacidad">
+        <div className="space-y-1">
+          {LEGAL_LINKS.map(link => (
+            <Link
+              key={link.to}
+              to={link.to}
+              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-black-soft transition hover:bg-cream"
+            >
+              <link.icon size={16} className="text-accent" />
+              <span className="flex-1">{link.label}</span>
+              <span className="text-muted">›</span>
+            </Link>
+          ))}
+
+          <button
+            onClick={handleDataExport}
+            disabled={exporting}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-black-soft transition hover:bg-cream disabled:opacity-50"
+          >
+            <Download size={16} className="text-accent" />
+            <span className="flex-1">
+              {exporting ? 'Preparando tus datos...' : 'Descargar mis datos (JSON)'}
+            </span>
+            <span className="text-muted">›</span>
+          </button>
+
+          <Link
+            to="/eliminar-cuenta"
+            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-destructive transition hover:bg-red-50"
+          >
+            <Trash2 size={16} />
+            <span className="flex-1">Eliminar mi cuenta</span>
+            <span className="opacity-60">›</span>
+          </Link>
         </div>
       </Card>
     </div>
