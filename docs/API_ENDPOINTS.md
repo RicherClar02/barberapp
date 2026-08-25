@@ -1,4 +1,4 @@
-# BarberApp API — Endpoints completos v1.0.0
+# ESTILO API — Endpoints completos v1.0.0
 
 Base URL: `http://localhost:3000`  
 Documentación interactiva: `http://localhost:3000/api-docs`
@@ -229,6 +229,28 @@ Documentación interactiva: `http://localhost:3000/api-docs`
 | GET | /api/loyalty/my | Sí | CLIENT | Mis puntos de fidelización |
 | GET | /api/loyalty/shop/:shopId | Sí | OWNER | Clientes fieles de la barbería |
 | POST | /api/loyalty/redeem | Sí | CLIENT | Canjear puntos |
+
+---
+
+## Legal (Términos, privacidad y consentimiento)
+| Método | Endpoint | Auth | Rol | Descripción |
+|--------|----------|------|-----|-------------|
+| GET | /api/legal/current-versions | No | — | Versiones vigentes y URLs públicas de los documentos |
+| GET | /api/legal/documents/:slug | No | — | Markdown del documento (`terms`, `privacy`, `cookies`, `account-deletion`). `?lang=en` para inglés |
+| POST | /api/legal/accept-terms | Sí | Todos | Registra la aceptación con IP y User-Agent (Ley 1581 de 2012) |
+| GET | /api/legal/acceptance-status | Sí | Todos | Si el usuario aceptó la versión vigente |
+
+---
+
+## Users (Derechos ARCO y eliminación de cuenta)
+| Método | Endpoint | Auth | Rol | Descripción |
+|--------|----------|------|-----|-------------|
+| GET | /api/users/me | Sí | Todos | Perfil (alias de /api/auth/profile) — derecho de acceso |
+| PUT | /api/users/me | Sí | Todos | Actualizar perfil — derecho de rectificación |
+| GET | /api/users/me/data-export | Sí | Todos | Descarga todos los datos en JSON — portabilidad (3/día) |
+| DELETE | /api/users/me | Sí | Todos | Elimina la cuenta. Body: `{ password, confirmation: "ELIMINAR" }` |
+| POST | /api/users/account-deletion/request | No | — | Solicitud pública de eliminación: envía enlace al correo (3/hora) |
+| POST | /api/users/account-deletion/confirm | No | — | Confirma la eliminación con el token del correo |
 
 ---
 
