@@ -1,6 +1,8 @@
 node_modules/
 # Keep environment variables out of version control
 .env
+# Logs de seguridad (contienen IPs y emails)
+logs/
 
 /generated/prisma
 

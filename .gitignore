@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Bases de datos locales
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# Build artifacts
+dist/
+build/
+.next/
+.expo/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Análisis interno
+graphify-out/
+_deprecated/
+
+# Config local de Claude Code
+.claude/settings.local.json
