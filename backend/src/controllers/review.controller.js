@@ -6,7 +6,7 @@ const createController = async (req, res) => {
     const review = await reviewService.createReview(req.body, req.user.id)
     res.status(201).json({ message: 'Reseña creada exitosamente', review })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(error.status || 400).json({ message: error.message })
   }
 }
 

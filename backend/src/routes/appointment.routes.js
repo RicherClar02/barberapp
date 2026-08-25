@@ -4,13 +4,18 @@ const {
   getAvailabilityController,
   createController,
   getMyController,
+  getBarberController,
   getShopController,
   confirmController,
   cancelController,
   completeController,
-  noShowController
+  noShowController,
+  rescheduleController
 } = require('../controllers/appointment.controller')
 const { authMiddleware, requireRole } = require('../middleware/auth.middleware')
+const { appointmentLimiter } = require('../middleware/rateLimiters')
+const { requireAppointmentParticipant } = require('../middleware/ownership.middleware')
+const { validateCreateAppointment } = require('../middleware/validate.middleware')
 
 /**
  * @swagger
@@ -110,7 +115,7 @@ router.get('/availability/:shopId/:barberId/:date', getAvailabilityController)
  *       403:
  *         description: Solo rol CLIENT
  */
-router.post('/', authMiddleware, requireRole('CLIENT'), createController)
+router.post('/', authMiddleware, requireRole('CLIENT'), appointmentLimiter, validateCreateAppointment, createController)
 
 /**
  * @swagger
@@ -129,6 +134,36 @@ router.post('/', authMiddleware, requireRole('CLIENT'), createController)
  *         description: Solo rol CLIENT
  */
 router.get('/my', authMiddleware, requireRole('CLIENT'), getMyController)
+
+/**
+ * @swagger
+ * /api/appointments/barber/{userId}:
+ *   get:
+ *     summary: Agenda del barbero autenticado por fecha (app móvil)
+ *     description: Solo el propio barbero puede consultar su agenda (userId debe coincidir con el token)
+ *     tags: [Appointments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de usuario del barbero
+ *       - in: query
+ *         name: date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Filtrar por fecha
+ *     responses:
+ *       200:
+ *         description: Citas del barbero con cliente y servicio
+ *       403:
+ *         description: No es tu agenda o no tienes perfil de barbero
+ */
+router.get('/barber/:userId', authMiddleware, requireRole('BARBER'), getBarberController)
 
 /**
  * @swagger
@@ -200,7 +235,7 @@ router.get('/shop/:shopId', authMiddleware, requireRole('OWNER', 'BARBER'), getS
  *       403:
  *         description: Solo OWNER o BARBER
  */
-router.put('/:id/confirm', authMiddleware, requireRole('OWNER', 'BARBER'), confirmController)
+router.put('/:id/confirm', authMiddleware, requireRole('OWNER', 'BARBER'), requireAppointmentParticipant(), confirmController)
 
 /**
  * @swagger
@@ -237,7 +272,7 @@ router.put('/:id/confirm', authMiddleware, requireRole('OWNER', 'BARBER'), confi
  *       403:
  *         description: Solo CLIENT u OWNER
  */
-router.put('/:id/cancel', authMiddleware, requireRole('CLIENT', 'OWNER', 'BARBER'), cancelController)
+router.put('/:id/cancel', authMiddleware, requireRole('CLIENT', 'OWNER', 'BARBER'), requireAppointmentParticipant(), cancelController)
 
 /**
  * @swagger
@@ -264,7 +299,7 @@ router.put('/:id/cancel', authMiddleware, requireRole('CLIENT', 'OWNER', 'BARBER
  *       403:
  *         description: Solo OWNER o BARBER
  */
-router.put('/:id/complete', authMiddleware, requireRole('OWNER', 'BARBER'), completeController)
+router.put('/:id/complete', authMiddleware, requireRole('OWNER', 'BARBER'), requireAppointmentParticipant(), completeController)
 
 /**
  * @swagger
@@ -291,6 +326,52 @@ router.put('/:id/complete', authMiddleware, requireRole('OWNER', 'BARBER'), comp
  *       403:
  *         description: Solo OWNER o BARBER
  */
-router.put('/:id/no-show', authMiddleware, requireRole('OWNER', 'BARBER'), noShowController)
+router.put('/:id/no-show', authMiddleware, requireRole('OWNER', 'BARBER'), requireAppointmentParticipant(), noShowController)
+
+/**
+ * @swagger
+ * /api/appointments/{id}/reschedule:
+ *   put:
+ *     summary: Reprogramar una cita por imprevisto (BARBER/OWNER)
+ *     description: Valida que el nuevo slot esté libre y notifica al cliente. Tras una reprogramación el cliente puede cancelar sin penalidad.
+ *     tags: [Appointments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de la cita
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [newDate, newStartTime, reason]
+ *             properties:
+ *               newDate:
+ *                 type: string
+ *                 format: date
+ *                 example: "2026-06-20"
+ *               newStartTime:
+ *                 type: string
+ *                 example: "10:00"
+ *               reason:
+ *                 type: string
+ *                 example: "Tuve una calamidad familiar"
+ *     responses:
+ *       200:
+ *         description: Cita reprogramada y cliente notificado
+ *       400:
+ *         description: Slot ocupado, fuera de horario, motivo faltante o sin permiso
+ *       401:
+ *         description: Token no proporcionado
+ *       403:
+ *         description: Solo OWNER o BARBER
+ */
+router.put('/:id/reschedule', authMiddleware, requireRole('OWNER', 'BARBER'), requireAppointmentParticipant(), rescheduleController)
 
 module.exports = router

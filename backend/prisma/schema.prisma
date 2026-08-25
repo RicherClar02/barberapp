@@ -28,7 +28,33 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  whatsappNumber String?
+  whatsappNumber    String?
+  resetToken        String?
+  resetTokenExpiry  DateTime?
+  resetAttempts     Int       @default(0)  // intentos fallidos del código OTP; al 5to se invalida el token
+  department        String?
+  city              String?   // ciudad de residencia por defecto
+
+  // ─ Seguridad ─
+  registrationIp    String?   // IP con la que se registró (anti-fraude)
+  lastLoginIp       String?
+  loginAttempts     Int       @default(0)  // intentos fallidos consecutivos
+  lockedUntil       DateTime? // bloqueo temporal tras 10 intentos fallidos
+  tokenVersion      Int       @default(0)  // invalida JWTs viejos al cambiar contraseña
+
+  // ─ Legal ─
+  // true cuando el usuario aceptó la versión VIGENTE de términos y privacidad.
+  // Se pone en false al publicar una versión nueva para forzar la re-aceptación.
+  currentTermsAccepted Boolean @default(false)
+
+  // Eliminación de cuenta solicitada desde la web pública (sin app instalada):
+  // se envía un enlace con este token al correo registrado y solo al abrirlo
+  // se ejecuta el borrado. Evita que un tercero elimine una cuenta ajena.
+  deletionToken       String?
+  deletionTokenExpiry DateTime?
+  // Marca de anonimización. La fila se conserva porque las citas y los pagos
+  // la referencian (retención fiscal), pero sin ningún dato personal.
+  deletedAt           DateTime?
 
   // Relaciones
   appointments            Appointment[]
@@ -40,8 +66,29 @@ model User {
   clientLoyalties         ClientLoyalty[]
   notificationPreference  NotificationPreference?
   waitlists               Waitlist[]
+  chatMessages            ChatMessage[]
+  termsAcceptances        TermsAcceptance[]
 
   @@map("users")
+}
+
+// ─── ACEPTACIÓN DE TÉRMINOS ─────────────────────────────
+// Prueba del consentimiento exigida por la Ley 1581 de 2012: qué versión
+// aceptó cada usuario, cuándo, desde qué IP y con qué dispositivo.
+// Es un histórico: nunca se actualiza una fila, se inserta una nueva.
+model TermsAcceptance {
+  id             String   @id @default(cuid())
+  userId         String
+  termsVersion   String   // "1.0"
+  privacyVersion String   // "1.0"
+  acceptedAt     DateTime @default(now())
+  ipAddress      String
+  userAgent      String?
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("terms_acceptances")
 }
 
 enum Role {
@@ -58,6 +105,10 @@ model Barbershop {
   description  String?
   address      String
   city         String
+  department   String?  // ej: "Meta"
+  locality     String?  // pueblo o vereda opcional
+  amenities    String?  // JSON: ["WiFi","Parqueadero","A/C"]
+  isVisible    Boolean  @default(true)
   latitude     Float?
   longitude    Float?
   phone        String?
@@ -89,6 +140,7 @@ model Barbershop {
   waitlists       Waitlist[]
   subscription    Subscription?
   offers          Offer[]
+  chatMessages    ChatMessage[]
 
   @@map("barbershops")
 }
@@ -156,6 +208,10 @@ model Appointment {
   totalPrice   Float
   notes        String?
   cancelReason String?
+  reminder15Sent     Boolean @default(false)
+  reminder5Sent      Boolean @default(false)
+  rescheduledByShop  Boolean @default(false) // permite al cliente cancelar sin penalidad
+  rescheduleReason   String?
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
 
@@ -220,6 +276,8 @@ model Review {
   appointmentId String  @unique
   rating       Int      // 1 al 5
   comment      String?
+  flagged      Boolean  @default(false) // marcada como sospechosa (no cuenta para el rating)
+  flagReason   String?
   createdAt    DateTime @default(now())
 
   // Relaciones
@@ -458,4 +516,21 @@ model SearchLog {
   createdAt DateTime @default(now())
 
   @@map("search_logs")
+}
+
+// ─── CHATBOT ────────────────────────────────────────────
+model ChatMessage {
+  id           String   @id @default(uuid())
+  userId       String
+  barbershopId String
+  role         String   // "user" | "assistant"
+  content      String
+  intent       String?  // book_appointment | cancel_appointment | check_availability | get_prices | get_hours | faq
+  createdAt    DateTime @default(now())
+
+  // Relaciones
+  user         User       @relation(fields: [userId], references: [id])
+  barbershop   Barbershop @relation(fields: [barbershopId], references: [id])
+
+  @@map("chat_messages")
 }

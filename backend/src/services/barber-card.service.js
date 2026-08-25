@@ -1,14 +1,8 @@
-const { PrismaClient } = require('@prisma/client')
-const { PrismaPg } = require('@prisma/adapter-pg')
-const pg = require('pg')
-
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL })
-const adapter = new PrismaPg(pool)
-const prisma = new PrismaClient({ adapter })
+const prisma = require('../lib/prisma')
 
 const round2 = (n) => Math.round(n * 100) / 100
 
-const getBarberCard = async (barberId, requestingUserRole) => {
+const getBarberCard = async (barberId, requestUser = null) => {
   const barber = await prisma.barber.findUnique({
     where: { id: barberId },
     include: {
@@ -18,15 +12,60 @@ const getBarberCard = async (barberId, requestingUserRole) => {
   })
   if (!barber) throw new Error('Barbero no encontrado')
 
-  // Rating y total de reseñas
+  // Privacidad: datos financieros, agenda y teléfonos de clientes SOLO
+  // para el propio barbero, el owner de SU barbería o un admin.
+  // Cualquier otro usuario ve la versión pública (perfil + reseñas).
+  const privileged = !!requestUser && (
+    requestUser.role === 'ADMIN' ||
+    (requestUser.role === 'BARBER' && barber.userId === requestUser.id) ||
+    (requestUser.role === 'OWNER' && barber.barbershop.ownerId === requestUser.id)
+  )
+
+  // Rating y total de reseñas (solo reseñas verificadas, no flagged)
   const reviews = await prisma.review.findMany({
-    where: { barberId },
+    where: { barberId, flagged: false },
     select: { rating: true }
   })
   const totalReviews = reviews.length
   const rating = totalReviews > 0
     ? reviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews
     : 0
+  // Regla de negocio: rating < 3.0 con mínimo 5 reseñas = alerta
+  const lowRating = totalReviews >= 5 && rating < 3.0
+
+  // Últimas 3 reseñas (visibles en la versión pública)
+  const recentReviews = await prisma.review.findMany({
+    where: { barberId, flagged: false },
+    include: { client: { select: { name: true, avatar: true } } },
+    orderBy: { createdAt: 'desc' },
+    take: 3
+  })
+
+  const barberProfile = {
+    id: barber.id,
+    name: barber.user.name,
+    avatar: barber.user.avatar,
+    specialty: barber.specialty,
+    bio: barber.bio,
+    rating: Math.round(rating * 10) / 10,
+    totalReviews,
+    lowRating,
+    barbershopName: barber.barbershop.name
+  }
+
+  const reviewsPayload = recentReviews.map(r => ({
+    id: r.id,
+    rating: r.rating,
+    comment: r.comment,
+    clientName: r.client.name,
+    clientAvatar: r.client.avatar,
+    createdAt: r.createdAt
+  }))
+
+  // Versión pública: solo perfil y reseñas
+  if (!privileged) {
+    return { barber: barberProfile, recentReviews: reviewsPayload }
+  }
 
   // Configuración para porcentaje
   const config = await prisma.barberShopConfig.findUnique({
@@ -59,12 +98,12 @@ const getBarberCard = async (barberId, requestingUserRole) => {
   const currentTime = `${String(now.getUTCHours()).padStart(2, '0')}:${String(now.getUTCMinutes()).padStart(2, '0')}`
   const nextAppt = pending.find(a => a.startTime >= currentTime)
 
-  const showContact = ['BARBER', 'OWNER'].includes(requestingUserRole)
-
+  // En este punto el solicitante es privilegiado: incluir contacto del cliente
   const formatClient = (client) => ({
     name: client.name,
     avatar: client.avatar,
-    ...(showContact ? { phone: client.phone, clientWhatsapp: client.whatsappNumber } : {})
+    phone: client.phone,
+    clientWhatsapp: client.whatsappNumber
   })
 
   // Próximas 5 citas (futuras, no hoy)
@@ -82,25 +121,8 @@ const getBarberCard = async (barberId, requestingUserRole) => {
     take: 5
   })
 
-  // Últimas 3 reseñas
-  const recentReviews = await prisma.review.findMany({
-    where: { barberId },
-    include: { client: { select: { name: true, avatar: true } } },
-    orderBy: { createdAt: 'desc' },
-    take: 3
-  })
-
   return {
-    barber: {
-      id: barber.id,
-      name: barber.user.name,
-      avatar: barber.user.avatar,
-      specialty: barber.specialty,
-      bio: barber.bio,
-      rating: Math.round(rating * 10) / 10,
-      totalReviews,
-      barbershopName: barber.barbershop.name
-    },
+    barber: barberProfile,
     today: {
       date: startOfDay.toISOString().split('T')[0],
       totalCuts: todayAppts.length,
@@ -127,15 +149,15 @@ const getBarberCard = async (barberId, requestingUserRole) => {
       servicePrice: a.service.price,
       ...formatClient(a.client)
     })),
-    recentReviews: recentReviews.map(r => ({
-      id: r.id,
-      rating: r.rating,
-      comment: r.comment,
-      clientName: r.client.name,
-      clientAvatar: r.client.avatar,
-      createdAt: r.createdAt
-    }))
+    recentReviews: reviewsPayload
   }
 }
 
-module.exports = { getBarberCard }
+// Variante por userId (la app móvil consulta con el id del usuario autenticado)
+const getBarberCardByUserId = async (userId, requestUser = null) => {
+  const barber = await prisma.barber.findFirst({ where: { userId } })
+  if (!barber) throw new Error('No tienes perfil de barbero')
+  return getBarberCard(barber.id, requestUser)
+}
+
+module.exports = { getBarberCard, getBarberCardByUserId }

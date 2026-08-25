@@ -1,12 +1,4 @@
-const { PrismaClient } = require('@prisma/client')
-const { PrismaPg } = require('@prisma/adapter-pg')
-const pg = require('pg')
-const cloudinary = require('../config/cloudinary')
-const { uploadToCloudinary, extractPublicId } = require('../middleware/upload.middleware')
-
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL })
-const adapter = new PrismaPg(pool)
-const prisma = new PrismaClient({ adapter })
+const prisma = require('../lib/prisma')
 
 const uploadBarbershopLogoController = async (req, res) => {
   try {

@@ -47,12 +47,21 @@ const checkoutController = async (req, res) => {
 }
 
 const subscriptionWebhookController = async (req, res) => {
+  const { logInvalidWebhook } = require('../utils/securityLog')
+  const signature = req.headers['stripe-signature']
+
+  // Rechazar cualquier webhook sin firma con 401 (anti-spoofing)
+  if (!signature || !process.env.STRIPE_WEBHOOK_SECRET) {
+    logInvalidWebhook('stripe-subscriptions', req.ip, signature ? 'STRIPE_WEBHOOK_SECRET no configurado' : 'Sin header stripe-signature')
+    return res.status(401).json({ message: 'Firma de webhook requerida' })
+  }
+
   try {
-    const signature = req.headers['stripe-signature']
     const result = await subscriptionService.handleSubscriptionWebhook(req.body, signature)
     res.status(200).json(result)
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    logInvalidWebhook('stripe-subscriptions', req.ip, error.message)
+    res.status(401).json({ message: 'Firma de webhook inválida' })
   }
 }
 

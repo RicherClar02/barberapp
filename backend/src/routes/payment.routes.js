@@ -14,6 +14,7 @@ const {
   epaycoVerifyController
 } = require('../controllers/payment.controller')
 const { authMiddleware, requireRole } = require('../middleware/auth.middleware')
+const { requireShopOwnership } = require('../middleware/ownership.middleware')
 
 /**
  * @swagger
@@ -129,7 +130,7 @@ router.get('/appointment/:appointmentId', authMiddleware, requireRole('CLIENT', 
  *       403:
  *         description: Solo rol OWNER
  */
-router.get('/shop/:shopId', authMiddleware, requireRole('OWNER'), getShopPaymentsController)
+router.get('/shop/:shopId', authMiddleware, requireRole('OWNER'), requireShopOwnership('shopId'), getShopPaymentsController)
 
 /**
  * @swagger
@@ -157,7 +158,7 @@ router.get('/shop/:shopId', authMiddleware, requireRole('OWNER'), getShopPayment
  *       403:
  *         description: Solo rol OWNER
  */
-router.get('/summary/:shopId', authMiddleware, requireRole('OWNER'), getSummaryController)
+router.get('/summary/:shopId', authMiddleware, requireRole('OWNER'), requireShopOwnership('shopId'), getSummaryController)
 
 /**
  * @swagger

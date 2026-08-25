@@ -1,10 +1,4 @@
-const { PrismaClient } = require('@prisma/client')
-const { PrismaPg } = require('@prisma/adapter-pg')
-const pg = require('pg')
-
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL })
-const adapter = new PrismaPg(pool)
-const prisma = new PrismaClient({ adapter })
+const prisma = require('../lib/prisma')
 
 // Fórmula de Haversine para distancia en km
 const haversine = (lat1, lng1, lat2, lng2) => {
@@ -24,8 +18,15 @@ const globalSearch = async (params, userId) => {
 
   const qLower = q.toLowerCase()
 
-  // Buscar barberías
-  const barbershopWhere = { isActive: true }
+  // Buscar barberías (excluir ocultas y con suscripción vencida/cancelada)
+  const barbershopWhere = {
+    isActive: true,
+    isVisible: true,
+    OR: [
+      { subscription: null },
+      { subscription: { status: { notIn: ['EXPIRED', 'CANCELLED'] } } }
+    ]
+  }
   if (city) barbershopWhere.city = { contains: city, mode: 'insensitive' }
   if (plan) barbershopWhere.plan = plan
   if (q) barbershopWhere.name = { contains: q, mode: 'insensitive' }
@@ -33,7 +34,7 @@ const globalSearch = async (params, userId) => {
   let barbershops = await prisma.barbershop.findMany({
     where: barbershopWhere,
     include: {
-      reviews: { select: { rating: true } },
+      reviews: { where: { flagged: false }, select: { rating: true } },
       barbers: { where: { isActive: true }, select: { id: true } },
       services: { where: { isActive: true }, select: { price: true } }
     },
@@ -104,7 +105,7 @@ const globalSearch = async (params, userId) => {
     include: {
       user: { select: { name: true, avatar: true } },
       barbershop: { select: { name: true, city: true } },
-      reviews: { select: { rating: true } }
+      reviews: { where: { flagged: false }, select: { rating: true } }
     },
     take: 5
   }) : []

@@ -1,13 +1,4 @@
-const { PrismaClient } = require('@prisma/client')
-const { PrismaPg } = require('@prisma/adapter-pg')
-const pg = require('pg')
-
-const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL
-})
-
-const adapter = new PrismaPg(pool)
-const prisma = new PrismaClient({ adapter })
+const prisma = require('../lib/prisma')
 
 // Crea o actualiza los horarios de la semana completa para una barbería
 // Recibe un array de 7 objetos: [{ dayOfWeek, openTime, closeTime, isOpen }]

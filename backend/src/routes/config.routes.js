@@ -2,6 +2,7 @@ const express = require('express')
 const router = express.Router()
 const { getConfigController, createConfigController, updateConfigController } = require('../controllers/config.controller')
 const { authMiddleware, requireRole } = require('../middleware/auth.middleware')
+const { requireShopOwnership } = require('../middleware/ownership.middleware')
 
 /**
  * @swagger
@@ -90,7 +91,7 @@ router.get('/:shopId', getConfigController)
  *       403:
  *         description: Solo rol OWNER
  */
-router.post('/:shopId', authMiddleware, requireRole('OWNER'), createConfigController)
+router.post('/:shopId', authMiddleware, requireRole('OWNER'), requireShopOwnership('shopId'), createConfigController)
 
 /**
  * @swagger
@@ -138,6 +139,6 @@ router.post('/:shopId', authMiddleware, requireRole('OWNER'), createConfigContro
  *       403:
  *         description: Solo rol OWNER
  */
-router.put('/:shopId', authMiddleware, requireRole('OWNER'), updateConfigController)
+router.put('/:shopId', authMiddleware, requireRole('OWNER'), requireShopOwnership('shopId'), updateConfigController)
 
 module.exports = router

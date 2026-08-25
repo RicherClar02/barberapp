@@ -38,6 +38,20 @@ const getMyController = async (req, res) => {
   }
 }
 
+// Barbero ve su propia agenda por fecha (usado por la app móvil)
+const getBarberController = async (req, res) => {
+  try {
+    const appointments = await appointmentService.getBarberAppointments(
+      req.params.userId,
+      req.user.id,
+      req.query.date
+    )
+    res.status(200).json({ appointments })
+  } catch (error) {
+    res.status(403).json({ message: error.message })
+  }
+}
+
 // Dueño o barbero ve la agenda de la barbería
 const getShopController = async (req, res) => {
   try {
@@ -94,13 +108,30 @@ const noShowController = async (req, res) => {
   }
 }
 
+// Reprogramar cita por imprevisto (BARBER/OWNER)
+const rescheduleController = async (req, res) => {
+  try {
+    const appointment = await appointmentService.rescheduleAppointment(
+      req.params.id,
+      req.body,
+      req.user.id,
+      req.user.role
+    )
+    res.status(200).json({ message: 'Cita reprogramada', appointment })
+  } catch (error) {
+    res.status(400).json({ message: error.message })
+  }
+}
+
 module.exports = {
   getAvailabilityController,
   createController,
   getMyController,
+  getBarberController,
   getShopController,
   confirmController,
   cancelController,
   completeController,
-  noShowController
+  noShowController,
+  rescheduleController
 }

@@ -2,6 +2,8 @@ const express = require('express')
 const router = express.Router()
 const { createController, getByShopController, getByBarberController, deleteController } = require('../controllers/review.controller')
 const { authMiddleware, requireRole } = require('../middleware/auth.middleware')
+const { reviewLimiter } = require('../middleware/rateLimiters')
+const { validateCreateReview } = require('../middleware/validate.middleware')
 
 /**
  * @swagger
@@ -103,7 +105,7 @@ router.get('/barber/:barberId', getByBarberController)
  *       403:
  *         description: Solo rol CLIENT
  */
-router.post('/', authMiddleware, requireRole('CLIENT'), createController)
+router.post('/', authMiddleware, requireRole('CLIENT'), reviewLimiter, validateCreateReview, createController)
 
 /**
  * @swagger

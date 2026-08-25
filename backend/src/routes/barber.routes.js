@@ -1,6 +1,6 @@
 const express = require('express')
 const router = express.Router()
-const { addBarberController, getByShopController, getByIdController, updateBarberController } = require('../controllers/barber.controller')
+const { addBarberController, getByShopController, getByIdController, updateBarberController, getCardByUserController } = require('../controllers/barber.controller')
 const { authMiddleware, requireRole } = require('../middleware/auth.middleware')
 
 /**
@@ -30,6 +30,30 @@ const { authMiddleware, requireRole } = require('../middleware/auth.middleware')
  *         description: Error del servidor
  */
 router.get('/shop/:shopId', getByShopController)
+
+/**
+ * @swagger
+ * /api/barbers/card/{userId}:
+ *   get:
+ *     summary: Tarjeta del barbero por id de usuario (app móvil)
+ *     description: Versión privilegiada (finanzas y teléfonos) solo para el propio barbero, su owner o admin
+ *     tags: [Barbers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de usuario del barbero
+ *     responses:
+ *       200:
+ *         description: Tarjeta del barbero
+ *       400:
+ *         description: No tiene perfil de barbero
+ */
+router.get('/card/:userId', authMiddleware, getCardByUserController)
 
 /**
  * @swagger

@@ -1,7 +1,8 @@
 const express = require('express')
 const router = express.Router()
-const { createController, getAllController, getByIdController, updateController, getMyBarbershopsController } = require('../controllers/barbershop.controller')
-const { authMiddleware, requireRole } = require('../middleware/auth.middleware')
+const { createController, getAllController, getByIdController, updateController, getMyBarbershopsController, getCompletenessController } = require('../controllers/barbershop.controller')
+const { authMiddleware, optionalAuthMiddleware, requireRole } = require('../middleware/auth.middleware')
+const { validateBarbershop } = require('../middleware/validate.middleware')
 
 /**
  * @swagger
@@ -14,9 +15,18 @@ const { authMiddleware, requireRole } = require('../middleware/auth.middleware')
  * @swagger
  * /api/barbershops:
  *   get:
- *     summary: Listar todas las barberías activas
+ *     summary: Listar todas las barberías activas y visibles
+ *     description: Si el usuario autenticado tiene ciudad guardada y no envía filtros, se usa su ciudad por defecto. Excluye barberías con suscripción vencida o cancelada. Orden por ciudad - PREMIUM con anuncio pagado, PREMIUM por rating, STANDARD por rating, BASIC por rating.
  *     tags: [Barbershops]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
+ *       - in: query
+ *         name: department
+ *         schema:
+ *           type: string
+ *         description: Filtrar por departamento
+ *         example: "Meta"
  *       - in: query
  *         name: city
  *         schema:
@@ -41,7 +51,31 @@ const { authMiddleware, requireRole } = require('../middleware/auth.middleware')
  *       500:
  *         description: Error del servidor
  */
-router.get('/', getAllController)
+router.get('/', optionalAuthMiddleware, getAllController)
+
+/**
+ * @swagger
+ * /api/barbershops/{id}/completeness:
+ *   get:
+ *     summary: Ver % de completitud de la ficha de la barbería (OWNER)
+ *     description: Ficha completa = logo + portada + descripción + dirección + lat/lng + mínimo 3 fotos + mínimo 1 servicio
+ *     tags: [Barbershops]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de la barbería
+ *     responses:
+ *       200:
+ *         description: "{ percentage, isComplete, checklist, missing }"
+ *       400:
+ *         description: Barbería no encontrada o sin permiso
+ */
+router.get('/:id/completeness', authMiddleware, requireRole('OWNER'), getCompletenessController)
 
 /**
  * @swagger
@@ -60,6 +94,24 @@ router.get('/', getAllController)
  *         description: Solo rol OWNER puede acceder
  */
 router.get('/owner/my-shops', authMiddleware, requireRole('OWNER'), getMyBarbershopsController)
+
+/**
+ * @swagger
+ * /api/barbershops/my:
+ *   get:
+ *     summary: Alias de /api/barbershops/owner/my-shops (usado por el panel web)
+ *     tags: [Barbershops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lista de barberías del dueño
+ *       401:
+ *         description: Token no proporcionado o inválido
+ *       403:
+ *         description: Solo rol OWNER puede acceder
+ */
+router.get('/my', authMiddleware, requireRole('OWNER'), getMyBarbershopsController)
 
 /**
  * @swagger
@@ -138,7 +190,7 @@ router.get('/:id', getByIdController)
  *       403:
  *         description: Solo rol OWNER puede crear barberías
  */
-router.post('/', authMiddleware, requireRole('OWNER'), createController)
+router.post('/', authMiddleware, requireRole('OWNER'), validateBarbershop, createController)
 
 /**
  * @swagger
@@ -181,6 +233,6 @@ router.post('/', authMiddleware, requireRole('OWNER'), createController)
  *       403:
  *         description: Solo el dueño puede editar
  */
-router.put('/:id', authMiddleware, requireRole('OWNER'), updateController)
+router.put('/:id', authMiddleware, requireRole('OWNER'), validateBarbershop, updateController)
 
 module.exports = router

@@ -1,13 +1,6 @@
-const { PrismaClient } = require('@prisma/client')
-const { PrismaPg } = require('@prisma/adapter-pg')
-const pg = require('pg')
+const prisma = require('../lib/prisma')
 
-const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL
-})
-
-const adapter = new PrismaPg(pool)
-const prisma = new PrismaClient({ adapter })
+const { canAccessBarberData } = require('../utils/permissions')
 
 const getPeriodRange = (period) => {
   const now = new Date()
@@ -40,20 +33,50 @@ const getPeriodRange = (period) => {
 
 const round2 = (n) => Math.round(n * 100) / 100
 
-// Ganancias de un barbero en un período
-const getBarberEarnings = async (barberId, period, userId, userRole) => {
-  const barber = await prisma.barber.findUnique({
-    where: { id: barberId },
-    include: { barbershop: true }
-  })
-  if (!barber) throw new Error('Barbero no encontrado')
+const DAY_NAMES_ES = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 
-  if (userRole === 'BARBER' && barber.userId !== userId) {
-    throw new Error('No tienes permiso para ver estas ganancias')
+const buildDaily = (appointments, period, shopPct, barberPct) => {
+  const now = new Date()
+
+  if (period === 'today') {
+    return Array.from({ length: 24 }, (_, h) => {
+      const label = `${String(h).padStart(2, '0')}:00`
+      const total = appointments
+        .filter(a => parseInt(a.startTime.split(':')[0]) === h)
+        .reduce((s, a) => s + a.totalPrice, 0)
+      return {
+        day: label,
+        date: now.toISOString().slice(0, 10),
+        total: round2(total),
+        shopEarnings: round2(total * shopPct / 100),
+        barberEarnings: round2(total * barberPct / 100),
+      }
+    })
   }
-  if (userRole === 'OWNER' && barber.barbershop.ownerId !== userId) {
-    throw new Error('No tienes permiso sobre esta barbería')
-  }
+
+  const days = period === 'week' ? 7 : 30
+  return Array.from({ length: days }, (_, i) => {
+    const d = new Date(now)
+    d.setUTCDate(now.getUTCDate() - (days - 1 - i))
+    const dStr = d.toISOString().slice(0, 10)
+    const total = appointments
+      .filter(a => a.date.toISOString().slice(0, 10) === dStr)
+      .reduce((s, a) => s + a.totalPrice, 0)
+    return {
+      day: period === 'week' ? DAY_NAMES_ES[d.getUTCDay()] : `${d.getUTCDate()}/${d.getUTCMonth() + 1}`,
+      date: dStr,
+      total: round2(total),
+      shopEarnings: round2(total * shopPct / 100),
+      barberEarnings: round2(total * barberPct / 100),
+    }
+  })
+}
+
+// Ganancias de un barbero en un período
+// Privacidad: solo el PROPIO barbero o el OWNER de su barbería (validado
+// en canAccessBarberData; cualquier otro usuario recibe 403)
+const getBarberEarnings = async (barberId, period, userId, userRole) => {
+  const barber = await canAccessBarberData({ id: userId, role: userRole }, barberId)
 
   const config = await prisma.barberShopConfig.findUnique({
     where: { barbershopId: barber.barbershopId }
@@ -141,24 +164,30 @@ const getShopEarnings = async (barbershopId, period, ownerId) => {
 
   const topBarber = [...breakdown].sort((a, b) => b.cuts - a.cuts)[0] || null
 
+  const cutsCount = appointments.length
+
   return {
     totalRevenue: round2(totalRevenue),
+    total: round2(totalRevenue),
     shopEarnings: round2(totalRevenue * (shopPercentage / 100)),
     barbersEarnings: round2(totalRevenue * (barberPercentage / 100)),
-    cutsCount: appointments.length,
+    barberEarnings: round2(totalRevenue * (barberPercentage / 100)),
+    cutsCount,
+    completedCuts: cutsCount,
+    avgTicket: cutsCount > 0 ? round2(totalRevenue / cutsCount) : 0,
+    pendingAmount: 0,
     period: period || 'month',
     shopPercentage,
     barberPercentage,
     topBarber,
-    breakdown
+    breakdown,
+    daily: buildDaily(appointments, period || 'month', shopPercentage, barberPercentage),
   }
 }
 
-// Vista rápida del día para un barbero
+// Vista rápida del día para un barbero — solo el PROPIO barbero
 const getBarberTodayQuick = async (barberId, userId) => {
-  const barber = await prisma.barber.findUnique({ where: { id: barberId } })
-  if (!barber) throw new Error('Barbero no encontrado')
-  if (barber.userId !== userId) throw new Error('No tienes permiso para ver estas ganancias')
+  const barber = await canAccessBarberData({ id: userId, role: 'BARBER' }, barberId)
 
   const config = await prisma.barberShopConfig.findUnique({
     where: { barbershopId: barber.barbershopId }

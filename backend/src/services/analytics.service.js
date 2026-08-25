@@ -1,10 +1,4 @@
-const { PrismaClient } = require('@prisma/client')
-const { PrismaPg } = require('@prisma/adapter-pg')
-const pg = require('pg')
-
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL })
-const adapter = new PrismaPg(pool)
-const prisma = new PrismaClient({ adapter })
+const prisma = require('../lib/prisma')
 
 const round2 = (n) => Math.round(n * 100) / 100
 
@@ -39,6 +33,8 @@ const verifyOwner = async (barbershopId, ownerId) => {
   if (b.ownerId !== ownerId) throw new Error('No tienes permiso sobre esta barbería')
   return b
 }
+
+const DAY_NAMES_ES = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 
 // Vista general de la barbería
 const getShopOverview = async (barbershopId, period, ownerId) => {
@@ -126,6 +122,28 @@ const getShopOverview = async (barbershopId, period, ownerId) => {
     else newClients++
   }
 
+  // Last 7 calendar days — independent of the requested period
+  const now = new Date()
+  const sevenDaysAgo = new Date(now)
+  sevenDaysAgo.setUTCDate(now.getUTCDate() - 6)
+  sevenDaysAgo.setUTCHours(0, 0, 0, 0)
+
+  const last7Appts = await prisma.appointment.findMany({
+    where: { barbershopId, status: 'COMPLETED', date: { gte: sevenDaysAgo } },
+    select: { date: true, totalPrice: true }
+  })
+
+  const dailyRevenue = []
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now)
+    d.setUTCDate(now.getUTCDate() - i)
+    const dStr = d.toISOString().slice(0, 10)
+    const revenue = last7Appts
+      .filter(a => a.date.toISOString().slice(0, 10) === dStr)
+      .reduce((s, a) => s + a.totalPrice, 0)
+    dailyRevenue.push({ day: DAY_NAMES_ES[d.getUTCDay()], date: dStr, revenue: round2(revenue) })
+  }
+
   return {
     period: period || 'month',
     revenue: {
@@ -145,7 +163,8 @@ const getShopOverview = async (barbershopId, period, ownerId) => {
     topBarbers,
     busyHours,
     newClients,
-    returningClients
+    returningClients,
+    dailyRevenue,
   }
 }
 
@@ -278,7 +297,7 @@ const getPlatformAnalytics = async () => {
       where: { isActive: true },
       include: {
         _count: { select: { appointments: true, reviews: true } },
-        reviews: { select: { rating: true } }
+        reviews: { where: { flagged: false }, select: { rating: true } }
       },
       orderBy: { createdAt: 'asc' },
       take: 10

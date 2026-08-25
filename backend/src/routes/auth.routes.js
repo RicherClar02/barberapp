@@ -1,8 +1,13 @@
 const express = require('express')
 const router = express.Router()
 const passport = require('../config/passport')
-const { registerController, loginController, profileController } = require('../controllers/auth.controller')
+const {
+  registerController, loginController, profileController, updateProfileController,
+  forgotPasswordController, verifyResetCodeController, resetPasswordController,
+} = require('../controllers/auth.controller')
 const { authMiddleware } = require('../middleware/auth.middleware')
+const { registerLimiter, loginLimiter, forgotPasswordLimiter } = require('../middleware/rateLimiters')
+const { validateRegister, validateLogin, validateForgotPassword, validateResetPassword, validateUpdateProfile } = require('../middleware/validate.middleware')
 
 /**
  * @swagger
@@ -50,7 +55,7 @@ const { authMiddleware } = require('../middleware/auth.middleware')
  *       400:
  *         description: Datos inválidos o email ya registrado
  */
-router.post('/register', registerController)
+router.post('/register', registerLimiter, validateRegister, registerController)
 
 /**
  * @swagger
@@ -80,7 +85,7 @@ router.post('/register', registerController)
  *       401:
  *         description: Credenciales incorrectas o cuenta desactivada
  */
-router.post('/login', loginController)
+router.post('/login', loginLimiter, validateLogin, loginController)
 
 /**
  * @swagger
@@ -99,6 +104,47 @@ router.post('/login', loginController)
  *         description: Usuario no encontrado
  */
 router.get('/profile', authMiddleware, profileController)
+
+/**
+ * @swagger
+ * /api/auth/profile:
+ *   put:
+ *     summary: Actualizar perfil del usuario autenticado
+ *     description: Permite guardar nombre, teléfono, avatar, WhatsApp, departamento y ciudad de residencia por defecto
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: "Juan Pérez"
+ *               phone:
+ *                 type: string
+ *                 example: "3001234567"
+ *               whatsappNumber:
+ *                 type: string
+ *                 example: "+573001234567"
+ *               department:
+ *                 type: string
+ *                 example: "Meta"
+ *               city:
+ *                 type: string
+ *                 example: "Villavicencio"
+ *     responses:
+ *       200:
+ *         description: Perfil actualizado
+ *       400:
+ *         description: Sin campos válidos para actualizar
+ *       401:
+ *         description: Token no proporcionado o inválido
+ */
+router.put('/profile', authMiddleware, validateUpdateProfile, updateProfileController)
 
 /**
  * @swagger
@@ -169,5 +215,81 @@ router.get(
 router.get('/oauth-error', (req, res) => {
   res.status(401).json({ message: 'Error en autenticación OAuth' })
 })
+
+/**
+ * @swagger
+ * /api/auth/forgot-password:
+ *   post:
+ *     summary: Solicitar código de recuperación de contraseña
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email]
+ *             properties:
+ *               email:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Código enviado al correo
+ */
+router.post('/forgot-password', forgotPasswordLimiter, validateForgotPassword, forgotPasswordController)
+
+/**
+ * @swagger
+ * /api/auth/verify-reset-code:
+ *   post:
+ *     summary: Verificar código OTP de recuperación
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, code]
+ *             properties:
+ *               email:
+ *                 type: string
+ *               code:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Código válido
+ *       400:
+ *         description: Código inválido o expirado
+ */
+router.post('/verify-reset-code', verifyResetCodeController)
+
+/**
+ * @swagger
+ * /api/auth/reset-password:
+ *   post:
+ *     summary: Restablecer contraseña con código OTP
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, code, newPassword]
+ *             properties:
+ *               email:
+ *                 type: string
+ *               code:
+ *                 type: string
+ *               newPassword:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Contraseña actualizada
+ *       400:
+ *         description: Código inválido o expirado
+ */
+router.post('/reset-password', validateResetPassword, resetPasswordController)
 
 module.exports = router

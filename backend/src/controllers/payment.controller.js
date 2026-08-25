@@ -59,12 +59,22 @@ const stripeCreateIntentController = async (req, res) => {
 }
 
 const stripeWebhookController = async (req, res) => {
+  const { logInvalidWebhook } = require('../utils/securityLog')
+  const signature = req.headers['stripe-signature']
+
+  // Rechazar cualquier webhook sin firma con 401 (anti-spoofing)
+  if (!signature || !process.env.STRIPE_WEBHOOK_SECRET) {
+    logInvalidWebhook('stripe', req.ip, signature ? 'STRIPE_WEBHOOK_SECRET no configurado' : 'Sin header stripe-signature')
+    return res.status(401).json({ message: 'Firma de webhook requerida' })
+  }
+
   try {
-    const signature = req.headers['stripe-signature']
     const result = await paymentService.handleStripeWebhook(req.body, signature)
     res.status(200).json(result)
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    // constructEvent lanza si la firma no es válida
+    logInvalidWebhook('stripe', req.ip, error.message)
+    res.status(401).json({ message: 'Firma de webhook inválida' })
   }
 }
 
@@ -93,10 +103,15 @@ const epaycoCreateController = async (req, res) => {
 }
 
 const epaycoConfirmController = async (req, res) => {
+  const { logInvalidWebhook } = require('../utils/securityLog')
   try {
     const result = await paymentService.handleEpaycoWebhook(req.body)
     res.status(200).json(result)
   } catch (error) {
+    if (error.message.includes('Firma ePayco inválida')) {
+      logInvalidWebhook('epayco', req.ip, 'x_signature no coincide')
+      return res.status(401).json({ message: 'Firma de webhook inválida' })
+    }
     res.status(400).json({ message: error.message })
   }
 }

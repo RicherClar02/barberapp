@@ -4,7 +4,7 @@ const getBarberCardController = async (req, res) => {
   try {
     const card = await barberCardService.getBarberCard(
       req.params.barberId,
-      req.user ? req.user.role : null
+      req.user || null
     )
     res.status(200).json(card)
   } catch (error) {

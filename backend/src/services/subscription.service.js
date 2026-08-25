@@ -1,10 +1,4 @@
-const { PrismaClient } = require('@prisma/client')
-const { PrismaPg } = require('@prisma/adapter-pg')
-const pg = require('pg')
-
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL })
-const adapter = new PrismaPg(pool)
-const prisma = new PrismaClient({ adapter })
+const prisma = require('../lib/prisma')
 
 const PLAN_PRICES = { BASIC: 30000, STANDARD: 60000, PREMIUM: 120000 }
 const PLAN_ANNUAL = { BASIC: 300000, STANDARD: 600000, PREMIUM: 1100000 }
@@ -61,13 +55,14 @@ const createSubscription = async (data, ownerId) => {
     }
   })
 
-  // Actualizar plan en la barbería
+  // Actualizar plan en la barbería y volver a hacerla visible
   await prisma.barbershop.update({
     where: { id: barbershopId },
     data: {
       plan,
       planExpiresAt: endDate,
-      isFeatured: plan === 'PREMIUM'
+      isFeatured: plan === 'PREMIUM',
+      isVisible: true
     }
   })
 
@@ -93,6 +88,7 @@ const getMySubscriptions = async (ownerId) => {
         subscriptionId: sub.id,
         barbershopId: b.id,
         barbershopName: b.name,
+        isVisible: b.isVisible,
         plan: sub.plan,
         status: sub.status,
         startDate: sub.startDate,
@@ -147,16 +143,18 @@ const checkExpiredSubscriptions = async () => {
       data: { status: 'EXPIRED' }
     })
 
+    // Al vencer la suscripción la barbería deja de ser visible para
+    // nuevos clientes. Sus citas ya agendadas NO se cancelan.
     await prisma.barbershop.update({
       where: { id: sub.barbershopId },
-      data: { plan: 'BASIC', isFeatured: false }
+      data: { plan: 'BASIC', isFeatured: false, isVisible: false }
     })
 
     await prisma.notification.create({
       data: {
         userId: sub.barbershop.ownerId,
         title: 'Suscripción vencida',
-        body: `Tu suscripción en ${sub.barbershop.name} venció. Renueva para mantener tu visibilidad en la plataforma.`,
+        body: `Tu suscripción en ${sub.barbershop.name} venció. Tu barbería no es visible. Renueva tu plan para volver a aparecer.`,
         type: 'SUBSCRIPTION_EXPIRED'
       }
     })
@@ -217,7 +215,7 @@ const handleSubscriptionWebhook = async (rawBody, signature) => {
 
     await prisma.barbershop.update({
       where: { id: barbershopId },
-      data: { plan, planExpiresAt: endDate, isFeatured: plan === 'PREMIUM' }
+      data: { plan, planExpiresAt: endDate, isFeatured: plan === 'PREMIUM', isVisible: true }
     })
 
     const barbershop = await prisma.barbershop.findUnique({ where: { id: barbershopId } })

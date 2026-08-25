@@ -1,13 +1,4 @@
-const { PrismaClient } = require('@prisma/client')
-const { PrismaPg } = require('@prisma/adapter-pg')
-const pg = require('pg')
-
-const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL
-})
-
-const adapter = new PrismaPg(pool)
-const prisma = new PrismaClient({ adapter })
+const prisma = require('../lib/prisma')
 
 // TODO: activar cuenta Twilio y configurar .env con TWILIO_SID, TWILIO_TOKEN, TWILIO_WHATSAPP_FROM
 const sendWhatsApp = async (to, message) => {
@@ -51,7 +42,9 @@ const sendPushNotification = async (userId, title, body) => {
 }
 
 // Envía recordatorio de cita según preferencias del cliente
-const sendAppointmentReminder = async (appointmentId) => {
+// minutesBefore: 15 (recordatorio normal) o 5 (último aviso con tolerancia)
+// Marca reminder15Sent/reminder5Sent para evitar duplicados si el cron corre dos veces
+const sendAppointmentReminder = async (appointmentId, minutesBefore = 15) => {
   const appointment = await prisma.appointment.findUnique({
     where: { id: appointmentId },
     include: {
@@ -64,14 +57,27 @@ const sendAppointmentReminder = async (appointmentId) => {
 
   if (!appointment) return
 
+  // Marcar el flag ANTES de enviar para evitar duplicados
+  const flagField = minutesBefore === 5 ? 'reminder5Sent' : 'reminder15Sent'
+  if (appointment[flagField]) return
+  await prisma.appointment.update({
+    where: { id: appointmentId },
+    data: { [flagField]: true }
+  })
+
   // Buscar preferencias del cliente
   const preferences = await prisma.notificationPreference.findUnique({
     where: { userId: appointment.clientId }
   })
 
-  const message = `Hola ${appointment.client.name}, recuerda tu cita en ${appointment.barbershop.name} con ${appointment.barber.user.name} a las ${appointment.startTime}. ¡Te esperamos! 💈`
+  // Respetar la preferencia de recordatorios del usuario
+  if (preferences && preferences.reminderEnabled === false) return
 
-  // Enviar según preferencia
+  const message = minutesBefore === 5
+    ? `⏰ ¡Tu cita es en 5 minutos! ${appointment.barbershop.name} te espera. Recuerda: hay 10 minutos de tolerancia.`
+    : `Hola ${appointment.client.name}, recuerda tu cita en ${appointment.barbershop.name} con ${appointment.barber.user.name} a las ${appointment.startTime}. ¡Te esperamos! 💈`
+
+  // Enviar según preferencia (WhatsApp o push)
   if (preferences && preferences.preferWhatsapp && preferences.whatsappNumber) {
     await sendWhatsApp(preferences.whatsappNumber, message)
   } else if (!preferences || preferences.preferPush) {

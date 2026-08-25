@@ -1,13 +1,4 @@
-const { PrismaClient } = require('@prisma/client')
-const { PrismaPg } = require('@prisma/adapter-pg')
-const pg = require('pg')
-
-const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL
-})
-
-const adapter = new PrismaPg(pool)
-const prisma = new PrismaClient({ adapter })
+const prisma = require('../lib/prisma')
 
 // Registra un pago en efectivo para una cita
 // Crea el Payment con method CASH y status COMPLETED
@@ -115,7 +106,12 @@ const handleStripeWebhook = async (rawBody, signature) => {
       const appt = await prisma.appointment.update({
         where: { id: payment.appointmentId },
         data: { status: 'CONFIRMED' },
-        include: { barbershop: true }
+        include: {
+          barbershop: true,
+          client: { select: { name: true } },
+          barber: { select: { userId: true } },
+          service: { select: { name: true } }
+        }
       })
       await loyaltyService.incrementLoyalty(appt.clientId, appt.barbershopId)
       await prisma.notification.create({
@@ -126,6 +122,19 @@ const handleStripeWebhook = async (rawBody, signature) => {
           type: 'PAYMENT_CONFIRMED'
         }
       })
+
+      // Notificar al barbero asignado de la reserva confirmada
+      const { sendPushNotification } = require('./notification.service')
+      const barberBody = `${appt.client.name} reservó ${appt.service.name} el ${new Date(appt.date).toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })} a las ${appt.startTime}`
+      await prisma.notification.create({
+        data: {
+          userId: appt.barber.userId,
+          title: 'Nueva reserva 💈',
+          body: barberBody,
+          type: 'BARBER_AGENDA'
+        }
+      })
+      await sendPushNotification(appt.barber.userId, 'Nueva reserva 💈', barberBody)
     }
   } else if (event.type === 'payment_intent.payment_failed') {
     const pi = event.data.object

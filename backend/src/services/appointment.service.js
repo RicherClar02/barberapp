@@ -1,15 +1,23 @@
-const { PrismaClient } = require('@prisma/client')
-const { PrismaPg } = require('@prisma/adapter-pg')
-const pg = require('pg')
-
-const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL
-})
-
-const adapter = new PrismaPg(pool)
-const prisma = new PrismaClient({ adapter })
+const prisma = require('../lib/prisma')
 const { incrementLoyalty } = require('./loyalty.service')
 const { notifyNextInWaitlist } = require('./waitlist.service')
+const { sendPushNotification } = require('./notification.service')
+const { generateSlots, filterAvailableSlots } = require('./shared/slots.service')
+
+// Formatea una fecha a texto legible en español (ej: "lunes 15 de junio")
+const formatDateEs = (date) => {
+  return new Date(date).toLocaleDateString('es-CO', {
+    weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC'
+  })
+}
+
+// Notifica al barbero asignado (push + registro en tabla Notification)
+const notifyBarber = async (barberUserId, title, body) => {
+  await prisma.notification.create({
+    data: { userId: barberUserId, title, body, type: 'BARBER_AGENDA' }
+  })
+  await sendPushNotification(barberUserId, title, body)
+}
 
 // Genera los slots disponibles para un barbero en una fecha específica
 // Lógica: toma el horario del día, genera slots cada X minutos (duración del servicio),
@@ -56,42 +64,9 @@ const getAvailability = async (barbershopId, barberId, date, serviceId) => {
   })
 
   // Filtrar slots que no se solapen con citas existentes
-  const availableSlots = allSlots.filter(slot => {
-    return !existingAppointments.some(appt => {
-      return slot.startTime < appt.endTime && slot.endTime > appt.startTime
-    })
-  })
+  const availableSlots = filterAvailableSlots(allSlots, existingAppointments)
 
   return { slots: availableSlots, duration: service.duration, serviceName: service.name }
-}
-
-// Genera slots de tiempo entre apertura y cierre con la duración indicada
-// Ejemplo: openTime="08:00", closeTime="20:00", duration=30
-// Resultado: [{ startTime: "08:00", endTime: "08:30" }, { startTime: "08:30", endTime: "09:00" }, ...]
-const generateSlots = (openTime, closeTime, duration) => {
-  const slots = []
-  const [openH, openM] = openTime.split(':').map(Number)
-  const [closeH, closeM] = closeTime.split(':').map(Number)
-
-  let currentMinutes = openH * 60 + openM
-  const closeMinutes = closeH * 60 + closeM
-
-  while (currentMinutes + duration <= closeMinutes) {
-    const startH = String(Math.floor(currentMinutes / 60)).padStart(2, '0')
-    const startM = String(currentMinutes % 60).padStart(2, '0')
-    const endTotal = currentMinutes + duration
-    const endH = String(Math.floor(endTotal / 60)).padStart(2, '0')
-    const endM = String(endTotal % 60).padStart(2, '0')
-
-    slots.push({
-      startTime: `${startH}:${startM}`,
-      endTime: `${endH}:${endM}`
-    })
-
-    currentMinutes += duration
-  }
-
-  return slots
 }
 
 // Crea una nueva cita
@@ -152,7 +127,7 @@ const createAppointment = async (data, clientId) => {
 
   if (conflict) throw new Error('El barbero ya tiene una cita en ese horario')
 
-  return await prisma.appointment.create({
+  const appointment = await prisma.appointment.create({
     data: {
       clientId,
       barbershopId,
@@ -165,11 +140,22 @@ const createAppointment = async (data, clientId) => {
       status: 'PENDING'
     },
     include: {
+      client: { select: { name: true } },
       barbershop: { select: { name: true, address: true } },
       barber: { include: { user: { select: { name: true } } } },
       service: { select: { name: true, price: true, duration: true } }
     }
   })
+
+  // Notificar al barbero asignado (también aplica cuando el sistema
+  // asignó el barbero por "cualquier barbero")
+  await notifyBarber(
+    barber.userId,
+    'Nueva reserva 💈',
+    `${appointment.client.name} reservó ${service.name} el ${formatDateEs(startOfDay)} a las ${startTime}`
+  )
+
+  return appointment
 }
 
 // Trae las citas del cliente autenticado
@@ -183,6 +169,39 @@ const getMyAppointments = async (clientId) => {
     },
     orderBy: { date: 'desc' }
   })
+}
+
+// Agenda del barbero autenticado por fecha (la app móvil consulta por userId)
+// Privacidad: solo el propio barbero puede ver su agenda
+const getBarberAppointments = async (targetUserId, requestUserId, date) => {
+  if (targetUserId !== requestUserId) throw new Error('No tienes permiso para ver esta agenda')
+
+  const barber = await prisma.barber.findFirst({ where: { userId: targetUserId } })
+  if (!barber) throw new Error('No tienes perfil de barbero')
+
+  const where = { barberId: barber.id }
+  if (date) {
+    const startOfDay = new Date(date)
+    startOfDay.setUTCHours(0, 0, 0, 0)
+    const endOfDay = new Date(date)
+    endOfDay.setUTCHours(23, 59, 59, 999)
+    where.date = { gte: startOfDay, lte: endOfDay }
+  }
+
+  const appointments = await prisma.appointment.findMany({
+    where,
+    include: {
+      client: { select: { name: true, phone: true, whatsappNumber: true, avatar: true } },
+      service: { select: { id: true, name: true, price: true, duration: true } }
+    },
+    orderBy: [{ date: 'asc' }, { startTime: 'asc' }]
+  })
+
+  return appointments.map(a => ({
+    ...a,
+    price: a.totalPrice,
+    client: { ...a.client, whatsapp: a.client.whatsappNumber }
+  }))
 }
 
 // Trae la agenda de una barbería con filtros opcionales
@@ -255,12 +274,14 @@ const cancelAppointment = async (id, userId, userRole, cancelReason) => {
   if (!appointment) throw new Error('Cita no encontrada')
 
   let cancelledByShop = false
+  let cancelledByClient = false
 
   if (userRole === 'CLIENT') {
     if (appointment.clientId !== userId) throw new Error('Esta cita no te pertenece')
     if (!['PENDING', 'CONFIRMED'].includes(appointment.status)) {
       throw new Error('Solo puedes cancelar citas pendientes o confirmadas')
     }
+    cancelledByClient = true
   } else if (userRole === 'OWNER') {
     if (appointment.barbershop.ownerId !== userId) throw new Error('No tienes permiso sobre esta barbería')
     cancelledByShop = true
@@ -274,10 +295,28 @@ const cancelAppointment = async (id, userId, userRole, cancelReason) => {
     throw new Error('No tienes permiso para cancelar esta cita')
   }
 
+  // Si cancela la barbería (BARBER), el motivo es obligatorio
+  if (userRole === 'BARBER' && (!cancelReason || !cancelReason.trim())) {
+    throw new Error('Debes indicar el motivo de la cancelación')
+  }
+
   const updated = await prisma.appointment.update({
     where: { id },
     data: { status: 'CANCELLED', cancelReason }
   })
+
+  // Si cancela el cliente: notificar al barbero asignado
+  if (cancelledByClient) {
+    const client = await prisma.user.findUnique({
+      where: { id: appointment.clientId },
+      select: { name: true }
+    })
+    await notifyBarber(
+      appointment.barber.userId,
+      'Cita cancelada',
+      `${client.name} canceló su cita de las ${appointment.startTime}`
+    )
+  }
 
   // Si cancela la barbería: notificar al cliente con disculpa y procesar reembolso
   if (cancelledByShop) {
@@ -285,7 +324,7 @@ const cancelAppointment = async (id, userId, userRole, cancelReason) => {
       data: {
         userId: appointment.clientId,
         title: 'Cita cancelada por la barbería',
-        body: `Lamentamos informarte que tu cita en ${appointment.barbershop.name} ha sido cancelada. Disculpa los inconvenientes. Puedes reagendar cuando quieras. 💈`,
+        body: `Lamentamos informarte que tu cita en ${appointment.barbershop.name} ha sido cancelada.${cancelReason ? ` Motivo: ${cancelReason}.` : ''} Disculpa los inconvenientes. Puedes reagendar cuando quieras. 💈`,
         type: 'CANCELLED_BY_SHOP'
       }
     })
@@ -376,6 +415,91 @@ const noShowAppointment = async (id, userId, userRole) => {
   return updated
 }
 
+// Reprogramar cita por imprevisto del barbero — solo BARBER (la suya) u OWNER
+// Valida que el nuevo slot esté libre y notifica al cliente.
+// El cliente puede cancelar sin penalidad tras una reprogramación (rescheduledByShop)
+const rescheduleAppointment = async (id, { newDate, newStartTime, reason }, userId, userRole) => {
+  if (!newDate || !newStartTime) throw new Error('newDate y newStartTime son obligatorios')
+  if (!reason || !reason.trim()) throw new Error('Debes indicar el motivo de la reprogramación')
+
+  const appointment = await prisma.appointment.findUnique({
+    where: { id },
+    include: { barbershop: true, barber: true, service: true }
+  })
+
+  if (!appointment) throw new Error('Cita no encontrada')
+  if (!['PENDING', 'CONFIRMED'].includes(appointment.status)) {
+    throw new Error('Solo se pueden reprogramar citas pendientes o confirmadas')
+  }
+
+  await verifyShopPermission(appointment, userId, userRole)
+
+  // Calcular nuevo endTime con la duración del servicio
+  const [startH, startM] = newStartTime.split(':').map(Number)
+  const endTotal = startH * 60 + startM + appointment.service.duration
+  const newEndTime = `${String(Math.floor(endTotal / 60)).padStart(2, '0')}:${String(endTotal % 60).padStart(2, '0')}`
+
+  // Validar horario de la barbería para el nuevo día
+  const dayOfWeek = new Date(newDate).getUTCDay()
+  const schedule = await prisma.schedule.findFirst({
+    where: { barbershopId: appointment.barbershopId, dayOfWeek }
+  })
+  if (!schedule || !schedule.isOpen) throw new Error('La barbería no abre ese día')
+  if (newStartTime < schedule.openTime || newEndTime > schedule.closeTime) {
+    throw new Error('El nuevo horario está fuera del horario de la barbería')
+  }
+
+  // Validar que el nuevo slot esté libre (excluyendo esta misma cita)
+  const startOfDay = new Date(newDate)
+  startOfDay.setUTCHours(0, 0, 0, 0)
+  const endOfDay = new Date(newDate)
+  endOfDay.setUTCHours(23, 59, 59, 999)
+
+  const conflict = await prisma.appointment.findFirst({
+    where: {
+      id: { not: id },
+      barberId: appointment.barberId,
+      date: { gte: startOfDay, lte: endOfDay },
+      status: { in: ['PENDING', 'CONFIRMED', 'IN_PROGRESS'] },
+      AND: [
+        { startTime: { lt: newEndTime } },
+        { endTime: { gt: newStartTime } }
+      ]
+    }
+  })
+  if (conflict) throw new Error('El barbero ya tiene una cita en ese horario')
+
+  const updated = await prisma.appointment.update({
+    where: { id },
+    data: {
+      date: startOfDay,
+      startTime: newStartTime,
+      endTime: newEndTime,
+      rescheduledByShop: true,
+      rescheduleReason: reason
+    },
+    include: {
+      client: { select: { name: true } },
+      barbershop: { select: { name: true } },
+      service: { select: { name: true } }
+    }
+  })
+
+  // Notificar al cliente
+  const message = `Tu cita fue reprogramada para ${formatDateEs(startOfDay)} a las ${newStartTime}. Motivo: ${reason}. Si no puedes asistir, cancélala sin costo.`
+  await prisma.notification.create({
+    data: {
+      userId: appointment.clientId,
+      title: 'Cita reprogramada 📅',
+      body: message,
+      type: 'APPOINTMENT_RESCHEDULED'
+    }
+  })
+  await sendPushNotification(appointment.clientId, 'Cita reprogramada 📅', message)
+
+  return updated
+}
+
 // Verifica que el usuario sea dueño o barbero de la barbería de la cita
 const verifyShopPermission = async (appointment, userId, userRole) => {
   if (userRole === 'OWNER') {
@@ -391,9 +515,11 @@ module.exports = {
   getAvailability,
   createAppointment,
   getMyAppointments,
+  getBarberAppointments,
   getShopAppointments,
   confirmAppointment,
   cancelAppointment,
   completeAppointment,
-  noShowAppointment
+  noShowAppointment,
+  rescheduleAppointment
 }

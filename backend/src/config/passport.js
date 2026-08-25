@@ -4,19 +4,17 @@ const passport = require('passport')
 const GoogleStrategy = require('passport-google-oauth20').Strategy
 const FacebookStrategy = require('passport-facebook').Strategy
 const jwt = require('jsonwebtoken')
-const { PrismaClient } = require('@prisma/client')
-const { PrismaPg } = require('@prisma/adapter-pg')
-const pg = require('pg')
-
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL })
-const adapter = new PrismaPg(pool)
-const prisma = new PrismaClient({ adapter })
+const prisma = require('../lib/prisma')
 
 const generateToken = (user) =>
   jwt.sign(
-    { id: user.id, email: user.email, role: user.role },
+    { id: user.id, email: user.email, role: user.role, tv: user.tokenVersion ?? 0 },
     process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES_IN }
+    {
+      expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+      issuer: 'estilo-api',
+      audience: 'estilo-clients',
+    }
   )
 
 const handleOAuthUser = async (provider, providerId, email, name, avatar) => {

@@ -1,16 +1,19 @@
-const { PrismaClient } = require('@prisma/client')
-const { PrismaPg } = require('@prisma/adapter-pg')
-const pg = require('pg')
+const prisma = require('../lib/prisma')
 
-const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL
-})
+const { checkReviewFraud } = require('./fraud.service')
+const { logFlaggedReview } = require('../utils/securityLog')
 
-const adapter = new PrismaPg(pool)
-const prisma = new PrismaClient({ adapter })
+const forbidden = (message) => {
+  const error = new Error(message)
+  error.status = 403
+  return error
+}
 
-// Crea una reseña para una cita completada
-// Validaciones: cita existe, pertenece al cliente, está COMPLETED, no tiene reseña previa
+// Crea una reseña para una cita completada (anti-fraude):
+// - cita existe, pertenece al cliente y está COMPLETED (reseña solo con cita real)
+// - completada hace menos de 14 días (no reseñas de citas viejas)
+// - 1 reseña por cita (appointmentId unique)
+// - patrones sospechosos → flagged (no cuenta para el rating hasta aprobación ADMIN)
 const createReview = async (data, clientId) => {
   const { appointmentId, rating, comment } = data
 
@@ -21,12 +24,20 @@ const createReview = async (data, clientId) => {
 
   // Verificar que la cita existe y pertenece al cliente
   const appointment = await prisma.appointment.findUnique({
-    where: { id: appointmentId }
+    where: { id: appointmentId },
+    include: { payment: { select: { status: true } } }
   })
 
   if (!appointment) throw new Error('Cita no encontrada')
-  if (appointment.clientId !== clientId) throw new Error('Esta cita no te pertenece')
-  if (appointment.status !== 'COMPLETED') throw new Error('Solo puedes reseñar citas completadas')
+  if (appointment.clientId !== clientId) throw forbidden('Esta cita no te pertenece')
+  if (appointment.status !== 'COMPLETED') throw forbidden('Solo puedes reseñar citas completadas')
+
+  // La cita debe haber sido pagada o completada hace menos de 14 días
+  const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)
+  const completedAt = new Date(appointment.updatedAt)
+  if (completedAt < fourteenDaysAgo) {
+    throw forbidden('Solo puedes reseñar citas de los últimos 14 días')
+  }
 
   // Verificar que no exista ya una reseña para esta cita
   const existingReview = await prisma.review.findUnique({
@@ -34,7 +45,9 @@ const createReview = async (data, clientId) => {
   })
   if (existingReview) throw new Error('Ya existe una reseña para esta cita')
 
-  // Crear la reseña
+  // Detección de patrones sospechosos (la reseña se crea pero marcada)
+  const fraud = await checkReviewFraud(clientId, appointment.barbershopId, rating)
+
   const review = await prisma.review.create({
     data: {
       clientId,
@@ -42,13 +55,19 @@ const createReview = async (data, clientId) => {
       barberId: appointment.barberId,
       appointmentId,
       rating,
-      comment
+      comment,
+      flagged: fraud.flagged,
+      flagReason: fraud.reason
     },
     include: {
       client: { select: { name: true, avatar: true } },
       barber: { include: { user: { select: { name: true } } } }
     }
   })
+
+  if (fraud.flagged) {
+    logFlaggedReview(review.id, clientId, appointment.barbershopId, fraud.reason)
+  }
 
   return review
 }
@@ -60,9 +79,10 @@ const getReviewsByShop = async (barbershopId, filters = {}) => {
   const limit = parseInt(filters.limit) || 10
   const skip = (page - 1) * limit
 
+  // Solo reseñas no marcadas como fraude cuentan y se muestran
   const [reviews, total] = await Promise.all([
     prisma.review.findMany({
-      where: { barbershopId },
+      where: { barbershopId, flagged: false },
       include: {
         client: { select: { name: true, avatar: true } },
         barber: { include: { user: { select: { name: true } } } }
@@ -71,12 +91,12 @@ const getReviewsByShop = async (barbershopId, filters = {}) => {
       skip,
       take: limit
     }),
-    prisma.review.count({ where: { barbershopId } })
+    prisma.review.count({ where: { barbershopId, flagged: false } })
   ])
 
-  // Calcular promedio de la barbería
+  // Calcular promedio de la barbería (solo reseñas verificadas)
   const avgResult = await prisma.review.aggregate({
-    where: { barbershopId },
+    where: { barbershopId, flagged: false },
     _avg: { rating: true },
     _count: { rating: true }
   })
@@ -97,7 +117,7 @@ const getReviewsByShop = async (barbershopId, filters = {}) => {
 // Trae las reseñas de un barbero específico
 const getReviewsByBarber = async (barberId) => {
   const reviews = await prisma.review.findMany({
-    where: { barberId },
+    where: { barberId, flagged: false },
     include: {
       client: { select: { name: true, avatar: true } }
     },
@@ -105,7 +125,7 @@ const getReviewsByBarber = async (barberId) => {
   })
 
   const avgResult = await prisma.review.aggregate({
-    where: { barberId },
+    where: { barberId, flagged: false },
     _avg: { rating: true },
     _count: { rating: true }
   })

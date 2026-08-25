@@ -1,6 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const { authMiddleware, requireRole } = require('../middleware/auth.middleware')
+const { requireShopOwnership, requireBarberSelf } = require('../middleware/ownership.middleware')
 const { uploadLogo, uploadPhoto, uploadAvatar, uploadServiceImg, uploadAdMedia } = require('../middleware/upload.middleware')
 const {
   uploadBarbershopLogoController,
@@ -47,7 +48,7 @@ const {
  *       403:
  *         description: Solo OWNER
  */
-router.post('/barbershop-logo/:shopId', authMiddleware, requireRole('OWNER'), uploadLogo.single('file'), uploadBarbershopLogoController)
+router.post('/barbershop-logo/:shopId', authMiddleware, requireRole('OWNER'), requireShopOwnership('shopId'), uploadLogo.single('file'), uploadBarbershopLogoController)
 
 /**
  * @swagger
@@ -80,7 +81,7 @@ router.post('/barbershop-logo/:shopId', authMiddleware, requireRole('OWNER'), up
  *       403:
  *         description: Solo OWNER
  */
-router.post('/barbershop-photo/:shopId', authMiddleware, requireRole('OWNER'), uploadPhoto.single('file'), uploadBarbershopPhotoController)
+router.post('/barbershop-photo/:shopId', authMiddleware, requireRole('OWNER'), requireShopOwnership('shopId'), uploadPhoto.single('file'), uploadBarbershopPhotoController)
 
 /**
  * @swagger
@@ -133,7 +134,7 @@ router.delete('/barbershop-photo/:photoId', authMiddleware, requireRole('OWNER')
  *       403:
  *         description: Solo OWNER o BARBER
  */
-router.post('/barber-avatar/:barberId', authMiddleware, requireRole('OWNER', 'BARBER'), uploadAvatar.single('file'), uploadBarberAvatarController)
+router.post('/barber-avatar/:barberId', authMiddleware, requireRole('OWNER', 'BARBER'), requireBarberSelf('barberId'), uploadAvatar.single('file'), uploadBarberAvatarController)
 
 /**
  * @swagger

@@ -4,7 +4,7 @@ const options = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'BarberApp API',
+      title: 'Estilo API',
       version: '1.0.0',
       description: 'API REST para gestión de barberías - Proyecto de Grado 2025'
     },

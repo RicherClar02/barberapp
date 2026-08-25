@@ -1,14 +1,4 @@
-const { PrismaClient } = require('@prisma/client')
-// AGREGAR ESTO PARA USAR PRISMA CON POSTGRESQL!!!
-const { PrismaPg } = require('@prisma/adapter-pg')
-const pg = require('pg')
-
-const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL
-})
-
-const adapter = new PrismaPg(pool)
-const prisma = new PrismaClient({ adapter })
+const prisma = require('../lib/prisma')
 
 const BARBER_LIMITS = { BASIC: 1, STANDARD: 3, PREMIUM: Infinity }
 
@@ -42,12 +32,25 @@ const addBarber = async ({ userId, barbershopId, specialty, bio }, ownerId) => {
 
 // Trae todos los barberos de una barbería específica
 // Se usa en el perfil de la barbería para mostrar el equipo
+// Incluye avgRating y lowRating (rating < 3.0 con mínimo 5 reseñas)
 const getBarbersByShop = async (barbershopId) => {
-  return await prisma.barber.findMany({
+  const barbers = await prisma.barber.findMany({
     where: { barbershopId, isActive: true },
     include: {
       user: { select: { name: true, avatar: true, phone: true } },
-      reviews: { select: { rating: true } }
+      reviews: { where: { flagged: false }, select: { rating: true } }
+    }
+  })
+
+  return barbers.map(b => {
+    const avgRating = b.reviews.length
+      ? Math.round(b.reviews.reduce((s, r) => s + r.rating, 0) / b.reviews.length * 10) / 10
+      : 0
+    return {
+      ...b,
+      avgRating,
+      totalReviews: b.reviews.length,
+      lowRating: b.reviews.length >= 5 && avgRating < 3.0
     }
   })
 }

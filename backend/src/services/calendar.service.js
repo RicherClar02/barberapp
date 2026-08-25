@@ -1,28 +1,7 @@
-const { PrismaClient } = require('@prisma/client')
-const { PrismaPg } = require('@prisma/adapter-pg')
-const pg = require('pg')
-
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL })
-const adapter = new PrismaPg(pool)
-const prisma = new PrismaClient({ adapter })
+const prisma = require('../lib/prisma')
+const { generateSlots, isSlotFree } = require('./shared/slots.service')
 
 const round2 = (n) => Math.round(n * 100) / 100
-
-// Genera slots de tiempo entre openTime y closeTime con la duración dada
-const generateSlots = (openTime, closeTime, duration) => {
-  const slots = []
-  const [oH, oM] = openTime.split(':').map(Number)
-  const [cH, cM] = closeTime.split(':').map(Number)
-  let cur = oH * 60 + oM
-  const close = cH * 60 + cM
-  while (cur + duration <= close) {
-    const sH = String(Math.floor(cur / 60)).padStart(2, '0')
-    const sM = String(cur % 60).padStart(2, '0')
-    slots.push(`${sH}:${sM}`)
-    cur += duration
-  }
-  return slots
-}
 
 // Convierte ISO week (año, semana) al lunes de esa semana
 const isoWeekToMonday = (year, week) => {
@@ -70,15 +49,12 @@ const parseDateRange = (month, week) => {
   return { start, end, days }
 }
 
+const { canAccessBarberData } = require('../utils/permissions')
+
+// Privacidad: solo el PROPIO barbero o el OWNER de su barbería
+// (antes un usuario con otro rol pasaba la validación; ahora 403)
 const verifyBarberAccess = async (barberId, userId, userRole) => {
-  const barber = await prisma.barber.findUnique({
-    where: { id: barberId },
-    include: { barbershop: true }
-  })
-  if (!barber) throw new Error('Barbero no encontrado')
-  if (userRole === 'BARBER' && barber.userId !== userId) throw new Error('No tienes acceso a este calendario')
-  if (userRole === 'OWNER' && barber.barbershop.ownerId !== userId) throw new Error('No tienes permiso sobre esta barbería')
-  return barber
+  return await canAccessBarberData({ id: userId, role: userRole }, barberId)
 }
 
 // Vista mensual/semanal del barbero
@@ -120,9 +96,12 @@ const getBarberCalendar = async (barberId, query, userId, userRole) => {
     let freeSlots = []
 
     if (schedule && schedule.isOpen) {
+      // Un slot queda ocupado si se solapa con la cita en cualquier punto:
+      // una cita de 60 min a las 09:00 sobre grilla de 40 min bloquea
+      // también el slot de las 09:40 (antes aparecía libre).
       const allSlots = generateSlots(schedule.openTime, schedule.closeTime, slotDuration)
-      occupiedSlots = active.map(a => a.startTime)
-      freeSlots = allSlots.filter(s => !occupiedSlots.includes(s))
+      occupiedSlots = allSlots.filter(s => !isSlotFree(s, active)).map(s => s.startTime)
+      freeSlots = allSlots.filter(s => isSlotFree(s, active)).map(s => s.startTime)
     }
 
     return {

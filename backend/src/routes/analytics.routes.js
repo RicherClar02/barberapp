@@ -1,6 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const { authMiddleware, requireRole } = require('../middleware/auth.middleware')
+const { requireShopOwnership } = require('../middleware/ownership.middleware')
 const {
   shopOverviewController,
   shopClientsController,
@@ -41,7 +42,7 @@ const {
  *       403:
  *         description: Solo OWNER o ADMIN
  */
-router.get('/shop/:shopId/overview', authMiddleware, requireRole('OWNER', 'ADMIN'), shopOverviewController)
+router.get('/shop/:shopId/overview', authMiddleware, requireRole('OWNER', 'ADMIN'), requireShopOwnership('shopId'), shopOverviewController)
 
 /**
  * @swagger
@@ -63,7 +64,7 @@ router.get('/shop/:shopId/overview', authMiddleware, requireRole('OWNER', 'ADMIN
  *       403:
  *         description: Solo OWNER o ADMIN
  */
-router.get('/shop/:shopId/clients', authMiddleware, requireRole('OWNER', 'ADMIN'), shopClientsController)
+router.get('/shop/:shopId/clients', authMiddleware, requireRole('OWNER', 'ADMIN'), requireShopOwnership('shopId'), shopClientsController)
 
 /**
  * @swagger
@@ -85,7 +86,7 @@ router.get('/shop/:shopId/clients', authMiddleware, requireRole('OWNER', 'ADMIN'
  *       403:
  *         description: Solo OWNER o ADMIN
  */
-router.get('/shop/:shopId/barbers', authMiddleware, requireRole('OWNER', 'ADMIN'), shopBarbersController)
+router.get('/shop/:shopId/barbers', authMiddleware, requireRole('OWNER', 'ADMIN'), requireShopOwnership('shopId'), shopBarbersController)
 
 /**
  * @swagger

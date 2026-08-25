@@ -42,4 +42,15 @@ const updateBarberController = async (req, res) => {
   }
 }
 
-module.exports = { addBarberController, getByShopController, getByIdController, updateBarberController }
+// Tarjeta del barbero por id de usuario (usado por la app móvil)
+const getCardByUserController = async (req, res) => {
+  try {
+    const { getBarberCardByUserId } = require('../services/barber-card.service')
+    const card = await getBarberCardByUserId(req.params.userId, req.user || null)
+    res.status(200).json(card)
+  } catch (error) {
+    res.status(400).json({ message: error.message })
+  }
+}
+
+module.exports = { addBarberController, getByShopController, getByIdController, updateBarberController, getCardByUserController }
