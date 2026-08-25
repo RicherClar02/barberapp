@@ -1,0 +1,78 @@
+{
+  "expo": {
+    "name": "Estilo",
+    "slug": "estilo",
+    "scheme": "estilo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "backgroundColor": "#4A2C0A",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "primaryColor": "#4A2C0A",
+    "description": "Reserva tu cita en la barbería más cercana. Estilo conecta clientes, barberos y dueños de barbería en Colombia.",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#4A2C0A"
+    },
+    "ios": {
+      "bundleIdentifier": "co.rcstudio.estilo",
+      "buildNumber": "1",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Estilo usa tu ubicación para mostrarte las barberías más cercanas y calcular distancias. Puedes desactivar este permiso en cualquier momento desde Ajustes.",
+        "NSCameraUsageDescription": "Estilo usa la cámara para que puedas tomar fotos de tu perfil o subir imágenes a tu galería (solo si eres barbero o dueño).",
+        "NSPhotoLibraryUsageDescription": "Estilo accede a tu galería para que puedas elegir fotos para tu perfil o para tu barbería.",
+        "NSPhotoLibraryAddUsageDescription": "Estilo puede guardar tu tarjeta digital de barbero en tu galería.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "co.rcstudio.estilo",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#4A2C0A"
+      },
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "INTERNET"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Estilo usa tu ubicación para mostrarte las barberías más cercanas y calcular distancias. Puedes desactivar este permiso en cualquier momento desde Ajustes.",
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Estilo accede a tu galería para que puedas elegir fotos para tu perfil o para tu barbería.",
+          "cameraPermission": "Estilo usa la cámara para que puedas tomar fotos de tu perfil o subir imágenes a tu galería (solo si eres barbero o dueño)."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#C49A6C",
+          "sounds": []
+        }
+      ]
+    ]
+  }
+}
