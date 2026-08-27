@@ -10,8 +10,8 @@ import { formatCurrency } from '../../utils/formatters'
 
 const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 const PLANS = [
-  { key: 'BASIC', label: 'Básico', price: 30000, features: ['1 barbero', '5 fotos', 'Sin ofertas'] },
-  { key: 'STANDARD', label: 'Estándar', price: 60000, features: ['3 barberos', '20 fotos', '1 oferta activa'] },
+  { key: 'BASIC', label: 'Básico', price: 30000, features: ['2 barberos', '5 fotos', 'Sin ofertas'] },
+  { key: 'STANDARD', label: 'Estándar', price: 60000, features: ['4 barberos', '20 fotos', '1 oferta activa'] },
   { key: 'PREMIUM', label: 'Premium', price: 120000, features: ['Barberos ilimitados', 'Fotos ilimitadas', 'Ofertas ilimitadas', 'Anuncios'] },
 ]
 

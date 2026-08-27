@@ -11,7 +11,7 @@ import Input from '../../components/ui/Input'
 import ImageUploader from '../../components/ui/ImageUploader'
 import { formatCurrency } from '../../utils/formatters'
 
-const PLAN_LIMITS = { BASIC: 1, STANDARD: 3, PREMIUM: Infinity }
+const PLAN_LIMITS = { BASIC: 2, STANDARD: 4, PREMIUM: Infinity }
 
 export default function OwnerBarbers() {
   const qc = useQueryClient()
