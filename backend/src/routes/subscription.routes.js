@@ -48,9 +48,14 @@ const { authMiddleware, requireRole } = require('../middleware/auth.middleware')
  *       400:
  *         description: Plan inválido, barbería no encontrada o sin permiso
  *       403:
- *         description: Solo OWNER
+ *         description: Solo ADMIN mientras la pasarela de pago no esté integrada
  */
-router.post('/', authMiddleware, requireRole('OWNER'), createController)
+// TEMPORAL: restringido a ADMIN. El servicio marca la suscripción como ACTIVE
+// sin cobrar nada (ver el TODO de pasarela en subscription.service.js), así que
+// con OWNER cualquier dueño se autoasignaba PREMIUM gratis.
+// Revertir a requireRole('OWNER') cuando ePayco esté integrado y el alta
+// dependa de un pago confirmado.
+router.post('/', authMiddleware, requireRole('ADMIN'), createController)
 
 /**
  * @swagger

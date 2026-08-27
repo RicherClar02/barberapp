@@ -1,5 +1,11 @@
 const prisma = require('../lib/prisma')
 
+// Campos editables del catálogo. `barbershopId` solo se acepta al crear, donde
+// se valida contra el dueño; en la edición queda fuera para que un servicio no
+// pueda migrarse a otra barbería.
+const CREATE_SERVICE_FIELDS = ['barbershopId', 'name', 'description', 'price', 'duration', 'image', 'isActive']
+const UPDATE_SERVICE_FIELDS = ['name', 'description', 'price', 'duration', 'image', 'isActive']
+
 // Crea un servicio nuevo dentro de una barbería
 // Ejemplo: "Corte clásico - $25.000 - 30 min"
 const createService = async (data, ownerId) => {
@@ -7,7 +13,12 @@ const createService = async (data, ownerId) => {
   if (!barbershop) throw new Error('Barbería no encontrada')
   if (barbershop.ownerId !== ownerId) throw new Error('No tienes permiso sobre esta barbería')
 
-  return await prisma.service.create({ data })
+  const createData = {}
+  for (const field of CREATE_SERVICE_FIELDS) {
+    if (data[field] !== undefined) createData[field] = data[field]
+  }
+
+  return await prisma.service.create({ data: createData })
 }
 
 // Trae todos los servicios activos de una barbería
@@ -29,7 +40,12 @@ const updateService = async (id, data, ownerId) => {
   if (!service) throw new Error('Servicio no encontrado')
   if (service.barbershop.ownerId !== ownerId) throw new Error('No tienes permiso para editar este servicio')
 
-  return await prisma.service.update({ where: { id }, data })
+  const updateData = {}
+  for (const field of UPDATE_SERVICE_FIELDS) {
+    if (data[field] !== undefined) updateData[field] = data[field]
+  }
+
+  return await prisma.service.update({ where: { id }, data: updateData })
 }
 
 // Desactiva un servicio en lugar de eliminarlo

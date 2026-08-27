@@ -1,11 +1,30 @@
 const prisma = require('../lib/prisma')
 
+// Campos que el dueño puede enviar al crear su barbería. Todo lo demás que
+// venga en el body se descarta en silencio: `plan`, `planExpiresAt`,
+// `isFeatured`, `isVerified`, `isVisible` e `isActive` los gobierna el sistema
+// (suscripción y moderación), nunca el cliente. `ownerId` sale del token.
+const CREATE_BARBERSHOP_FIELDS = [
+  'name', 'description', 'address', 'city', 'department', 'locality',
+  'amenities', 'latitude', 'longitude', 'phone', 'email',
+  'instagram', 'facebook', 'logo', 'coverImage'
+]
+
+// Al editar se permite exactamente lo mismo que al crear: no hay ningún campo
+// que solo tenga sentido en la edición.
+const UPDATE_BARBERSHOP_FIELDS = CREATE_BARBERSHOP_FIELDS
+
 // Crea una barbería nueva en la base de datos
 // Solo los usuarios con rol OWNER pueden hacer esto
 const createBarbershop = async (data, ownerId) => {
+  const createData = {}
+  for (const field of CREATE_BARBERSHOP_FIELDS) {
+    if (data[field] !== undefined) createData[field] = data[field]
+  }
+
   const barbershop = await prisma.barbershop.create({
     data: {
-      ...data,
+      ...createData,
       ownerId
     }
   })
@@ -162,9 +181,17 @@ const updateBarbershop = async (id, data, ownerId) => {
   if (!barbershop) throw new Error('Barbería no encontrada')
   if (barbershop.ownerId !== ownerId) throw new Error('No tienes permiso para editar esta barbería')
 
+  // `ownerId` queda fuera de la allowlist a propósito: el permiso de arriba se
+  // comprueba contra el dueño ACTUAL, así que aceptarlo aquí permitiría
+  // transferir la barbería a un tercero justo después de pasar el control.
+  const updateData = {}
+  for (const field of UPDATE_BARBERSHOP_FIELDS) {
+    if (data[field] !== undefined) updateData[field] = data[field]
+  }
+
   return await prisma.barbershop.update({
     where: { id },
-    data
+    data: updateData
   })
 }
 

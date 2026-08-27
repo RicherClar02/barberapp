@@ -2,6 +2,12 @@ const prisma = require('../lib/prisma')
 
 const BARBER_LIMITS = { BASIC: 2, STANDARD: 4, PREMIUM: Infinity }
 
+// Campos editables de un barbero. `userId` y `barbershopId` quedan fuera: son
+// la identidad del vínculo y reasignarlos movería el perfil a otra persona o a
+// otro negocio. `isActive` sí entra porque este es hoy el único endpoint que
+// permite dar de baja a un barbero.
+const UPDATE_BARBER_FIELDS = ['specialty', 'bio', 'isActive']
+
 // Convierte un usuario existente en barbero de una barbería
 const addBarber = async ({ userId, barbershopId, specialty, bio }, ownerId) => {
   const barbershop = await prisma.barbershop.findUnique({ where: { id: barbershopId } })
@@ -86,7 +92,27 @@ const updateBarber = async (id, data, ownerId) => {
   if (!barber) throw new Error('Barbero no encontrado')
   if (barber.barbershop.ownerId !== ownerId) throw new Error('No tienes permiso para editar este barbero')
 
-  return await prisma.barber.update({ where: { id }, data })
+  const updateData = {}
+  for (const field of UPDATE_BARBER_FIELDS) {
+    if (data[field] !== undefined) updateData[field] = data[field]
+  }
+
+  // Reactivar consume un cupo del plan igual que un alta. Sin esta comprobación
+  // el tope se evade dando de baja barberos, agregando otros y reactivando los
+  // primeros: `addBarber` solo cuenta los que están activos.
+  if (updateData.isActive === true && barber.isActive === false) {
+    const limit = BARBER_LIMITS[barber.barbershop.plan] ?? 1
+    if (limit !== Infinity) {
+      const activeCount = await prisma.barber.count({
+        where: { barbershopId: barber.barbershopId, isActive: true }
+      })
+      if (activeCount >= limit) {
+        throw new Error(`Tu plan ${barber.barbershop.plan} solo permite ${limit} barbero(s) activo(s). Actualiza tu plan para agregar más.`)
+      }
+    }
+  }
+
+  return await prisma.barber.update({ where: { id }, data: updateData })
 }
 
 module.exports = { addBarber, getBarbersByShop, getBarberById, updateBarber }
