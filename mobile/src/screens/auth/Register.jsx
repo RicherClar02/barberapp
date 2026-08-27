@@ -14,6 +14,37 @@ const ROLES = [
   { key: 'OWNER', label: 'Dueño de Barbería', icon: '🏢', desc: 'Administro mi barbería' },
 ]
 
+// A NIVEL DE MÓDULO A PROPÓSITO. Estaba declarado dentro de Register, y ahí
+// cada tecla creaba una función nueva: React compara el tipo del elemento por
+// identidad, veía un tipo distinto, y en vez de actualizar el input desmontaba
+// el subárbol y montaba otro. El TextInput nativo se recreaba, perdía el foco y
+// el teclado se bajaba en cada letra. Definido acá la referencia es estable y
+// el input se actualiza en lugar de remontarse.
+// Solo usa spacing, styles y colors, que también son de módulo: no cierra sobre
+// nada del estado de Register.
+const InputField = ({ label, value, onChangeText, placeholder, keyboardType, secure, showToggle, onToggle, error }) => (
+  <View style={{ marginBottom: spacing.md }}>
+    <View style={[styles.inputWrapper, error && styles.inputWrapperError]}>
+      <TextInput
+        style={styles.input}
+        placeholder={placeholder}
+        placeholderTextColor={colors.muted}
+        value={value}
+        onChangeText={onChangeText}
+        keyboardType={keyboardType || 'default'}
+        secureTextEntry={secure}
+        autoCapitalize={keyboardType === 'email-address' ? 'none' : 'sentences'}
+      />
+      {showToggle !== undefined && (
+        <TouchableOpacity onPress={onToggle} style={{ padding: spacing.xs }}>
+          <Text style={{ fontSize: 14 }}>{!secure ? '👁️' : '👁️‍🗨️'}</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+    {error && <Text style={styles.errorText}>{error}</Text>}
+  </View>
+)
+
 export default function Register({ navigation }) {
   const { login } = useAuthStore()
   const [form, setForm] = useState({
@@ -76,29 +107,6 @@ export default function Register({ navigation }) {
       setLoading(false)
     }
   }
-
-  const InputField = ({ label, value, onChangeText, placeholder, keyboardType, secure, showToggle, onToggle, error }) => (
-    <View style={{ marginBottom: spacing.md }}>
-      <View style={[styles.inputWrapper, error && styles.inputWrapperError]}>
-        <TextInput
-          style={styles.input}
-          placeholder={placeholder}
-          placeholderTextColor={colors.muted}
-          value={value}
-          onChangeText={onChangeText}
-          keyboardType={keyboardType || 'default'}
-          secureTextEntry={secure}
-          autoCapitalize={keyboardType === 'email-address' ? 'none' : 'sentences'}
-        />
-        {showToggle !== undefined && (
-          <TouchableOpacity onPress={onToggle} style={{ padding: spacing.xs }}>
-            <Text style={{ fontSize: 14 }}>{!secure ? '👁️' : '👁️‍🗨️'}</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-      {error && <Text style={styles.errorText}>{error}</Text>}
-    </View>
-  )
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
