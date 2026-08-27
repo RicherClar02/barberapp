@@ -61,6 +61,33 @@ const getBarbersByShop = async (barbershopId) => {
   })
 }
 
+// Perfil de barbero del usuario autenticado. Es el punto de entrada de todas
+// las pantallas de barbero: necesitan el id del PERFIL (barber.id) para
+// calendario, ganancias y tarjeta, y el id de USUARIO (barber.userId) para
+// /api/appointments/barber/:userId, que compara contra el dueño del token.
+// Por eso la respuesta expone los dos explícitamente.
+const getMyBarberProfile = async (userId) => {
+  const barber = await prisma.barber.findUnique({
+    where: { userId },
+    include: {
+      user: { select: { id: true, name: true, email: true, avatar: true } },
+      barbershop: {
+        select: {
+          id: true,
+          name: true,
+          address: true,
+          city: true,
+          logo: true,
+          config: { select: { barberPercentage: true, appointmentDuration: true } }
+        }
+      }
+    }
+  })
+
+  if (!barber) throw new Error('No tienes perfil de barbero')
+  return barber
+}
+
 // Trae el perfil completo de un barbero con sus citas y reseñas
 // Se usa cuando el cliente quiere ver el detalle de un barbero específico
 const getBarberById = async (id) => {
@@ -115,4 +142,4 @@ const updateBarber = async (id, data, ownerId) => {
   return await prisma.barber.update({ where: { id }, data: updateData })
 }
 
-module.exports = { addBarber, getBarbersByShop, getBarberById, updateBarber }
+module.exports = { addBarber, getBarbersByShop, getBarberById, getMyBarberProfile, updateBarber }

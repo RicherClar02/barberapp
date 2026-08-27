@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken')
 const prisma = require('../lib/prisma')
 const emailService = require('./email.service')
 
-const { logFailedLogin, logAccountLocked } = require('../utils/securityLog')
+const { logFailedLogin, logAccountLocked, logUserLookup } = require('../utils/securityLog')
 const { checkRegistrationIpAbuse } = require('./fraud.service')
 const { TERMS_VERSION, PRIVACY_VERSION } = require('../constants/legal')
 const { PASSWORD_MIN, PASSWORD_MAX, PASSWORD_LENGTH_MESSAGE } = require('../constants/password')
@@ -364,4 +364,27 @@ const changePassword = async (userId, currentPassword, newPassword) => {
   return { message: 'Contraseña actualizada correctamente. Vuelve a iniciar sesión.' }
 }
 
-module.exports = { register, login, getProfile, updateProfile, forgotPassword, verifyResetCode, resetPassword, changePassword }
+// Busca un usuario por email para que un dueño pueda sumarlo como barbero.
+// Devuelve el mínimo indispensable: id, nombre y rol. Nada de teléfono, ciudad,
+// estado de verificación ni fecha de alta — con eso el endpoint sirve para
+// confirmar "es este Juan" y para nada más. El rol viaja porque addBarber exige
+// que sea BARBER: sin él el dueño no puede entender por qué falla el alta.
+const findUserByEmail = async (email, requesterId) => {
+  const normalized = String(email || '').trim()
+  if (!normalized) throw new Error('Email requerido')
+
+  // findFirst + insensitive, no findUnique: register guarda el email tal cual lo
+  // escribió el usuario, así que buscar en minúsculas no encontraría a alguien
+  // registrado como Juan@Mail.com.
+  const user = await prisma.user.findFirst({
+    where: { email: { equals: normalized, mode: 'insensitive' } },
+    select: { id: true, name: true, role: true }
+  })
+
+  logUserLookup(requesterId, normalized.toLowerCase(), !!user)
+
+  if (!user) return { found: false }
+  return { found: true, user }
+}
+
+module.exports = { register, login, getProfile, updateProfile, forgotPassword, verifyResetCode, resetPassword, changePassword, findUserByEmail }

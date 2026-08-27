@@ -323,7 +323,7 @@ export default function OwnerAgenda() {
                   <Button size="sm" onClick={() => doAction({ id: selectedAppt.id, action: 'complete' })} loading={actioning}>
                     Completar
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => doAction({ id: selectedAppt.id, action: 'noshow' })} loading={actioning}>
+                  <Button size="sm" variant="outline" onClick={() => doAction({ id: selectedAppt.id, action: 'no-show' })} loading={actioning}>
                     No se presentó
                   </Button>
                   <Button size="sm" variant="danger" onClick={() => handleActionConfirm(selectedAppt.id, 'cancel', `¿Cancelar la cita de ${selectedAppt.client?.name}? El cliente será notificado.`)}>

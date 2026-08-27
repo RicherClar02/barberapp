@@ -25,20 +25,21 @@ export default function BarberAppointments() {
     queryKey: ['my-barber-profile'],
     queryFn: () => api.get('/api/barbers/my').then(r => r.data),
   })
-  const barberId = barberData?.barber?.id || barberData?.id
-  const barberPct = barberData?.barber?.barbershop?.config?.barberPercentage || 60
+  const barber = barberData?.barber || barberData
+  // Dos identificadores distintos: /api/earnings/barber/:barberId espera el id
+  // del perfil, y /api/appointments/barber/:userId el del usuario (lo compara
+  // contra el dueño del token). Confundirlos devuelve 403.
+  const barberId = barber?.id
+  const barberUserId = barber?.userId
+  const barberPct = barber?.barbershop?.config?.barberPercentage || 60
 
   const currentTab = TABS.find(t => t.key === tab)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['barber-appointments', barberId, tab, fromDate, search, page],
-    queryFn: () => {
-      let url = `/api/appointments/barber/${barberId}?page=${page}&limit=15&status=${currentTab?.statuses}`
-      if (fromDate) url += `&from=${fromDate}`
-      if (search) url += `&client=${encodeURIComponent(search)}`
-      return api.get(url).then(r => r.data)
-    },
-    enabled: !!barberId,
+    queryKey: ['barber-appointments', barberUserId],
+    queryFn: () =>
+      api.get(`/api/appointments/barber/${barberUserId}`).then(r => r.data),
+    enabled: !!barberUserId,
   })
 
   const { data: statsData } = useQuery({
@@ -47,8 +48,20 @@ export default function BarberAppointments() {
     enabled: !!barberId,
   })
 
-  const appointments = data?.appointments || data || []
-  const total = data?.total || appointments.length
+  // El endpoint devuelve la agenda completa del barbero y solo acepta ?date,
+  // así que pestaña, fecha desde, búsqueda y paginado se resuelven acá. Si la
+  // lista crece, esto se mueve al backend con page/limit/status reales.
+  const PAGE_SIZE = 15
+  const allAppointments = data?.appointments || data || []
+  const wantedStatuses = (currentTab?.statuses || '').split(',')
+  const filtered = allAppointments.filter(a => {
+    if (!wantedStatuses.includes(a.status)) return false
+    if (fromDate && a.date?.slice(0, 10) < fromDate) return false
+    if (search && !a.client?.name?.toLowerCase().includes(search.toLowerCase())) return false
+    return true
+  })
+  const total = filtered.length
+  const appointments = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const stats = statsData?.earnings || {}
 
   return (

@@ -204,7 +204,7 @@ export default function BarberAgenda() {
                                       <Button size="sm" onClick={() => doAction({ id: a.id, action: 'complete' })} loading={actioning}>
                                         Completar
                                       </Button>
-                                      <Button size="sm" variant="outline" onClick={() => doAction({ id: a.id, action: 'noshow' })} loading={actioning}>
+                                      <Button size="sm" variant="outline" onClick={() => doAction({ id: a.id, action: 'no-show' })} loading={actioning}>
                                         No-show
                                       </Button>
                                     </>
@@ -300,7 +300,7 @@ export default function BarberAgenda() {
                   <Button size="sm" onClick={() => doAction({ id: selectedAppt.id, action: 'complete' })} loading={actioning}>
                     Completar
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => doAction({ id: selectedAppt.id, action: 'noshow' })} loading={actioning}>
+                  <Button size="sm" variant="outline" onClick={() => doAction({ id: selectedAppt.id, action: 'no-show' })} loading={actioning}>
                     No-show
                   </Button>
                 </>

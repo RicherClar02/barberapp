@@ -1,6 +1,6 @@
 const express = require('express')
 const router = express.Router()
-const { addBarberController, getByShopController, getByIdController, updateBarberController, getCardByUserController } = require('../controllers/barber.controller')
+const { addBarberController, getByShopController, getByIdController, getMyController, updateBarberController, getCardByUserController } = require('../controllers/barber.controller')
 const { authMiddleware, requireRole } = require('../middleware/auth.middleware')
 
 /**
@@ -54,6 +54,27 @@ router.get('/shop/:shopId', getByShopController)
  *         description: No tiene perfil de barbero
  */
 router.get('/card/:userId', authMiddleware, getCardByUserController)
+
+/**
+ * @swagger
+ * /api/barbers/my:
+ *   get:
+ *     summary: Perfil de barbero del usuario autenticado
+ *     description: |
+ *       Punto de entrada de las pantallas de barbero. Devuelve el id del perfil
+ *       (barber.id) y el id de usuario (barber.userId): el primero lo usan
+ *       calendario, ganancias y tarjeta; el segundo, /api/appointments/barber/:userId.
+ *     tags: [Barbers]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Perfil del barbero con su barbería y configuración
+ *       404:
+ *         description: El usuario no tiene perfil de barbero
+ */
+// Va antes de '/:id': si no, Express resuelve '/my' como un id y nunca llega aquí.
+router.get('/my', authMiddleware, requireRole('BARBER'), getMyController)
 
 /**
  * @swagger

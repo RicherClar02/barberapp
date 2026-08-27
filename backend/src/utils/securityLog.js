@@ -46,6 +46,12 @@ const logHoneypot = (ip, email) =>
 const logFailedOtp = (email, ip, attemptsLeft) =>
   writeLine('WARN', 'FAILED_RESET_OTP', { email, ip, attemptsLeft })
 
+// Búsqueda de un usuario por email hecha por un dueño. Deja rastro atribuible:
+// el endpoint confirma la existencia de cuentas, así que un barrido tiene que
+// ser visible y quedar ligado a quien lo hizo.
+const logUserLookup = (ownerId, email, found) =>
+  writeLine('INFO', 'USER_LOOKUP_BY_EMAIL', { ownerId, email, found })
+
 module.exports = {
   logFailedLogin,
   logAccountLocked,
@@ -54,4 +60,5 @@ module.exports = {
   logInvalidWebhook,
   logHoneypot,
   logFailedOtp,
+  logUserLookup,
 }

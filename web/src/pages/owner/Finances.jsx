@@ -62,7 +62,9 @@ export default function OwnerFinances() {
   })
 
   const { mutate: refundPayment, isPending: refunding } = useMutation({
-    mutationFn: (paymentId) => api.post(`/api/payments/${paymentId}/refund`),
+    // El backend identifica el reembolso por la cita, no por el pago:
+    // POST /api/payments/refund/:appointmentId
+    mutationFn: (appointmentId) => api.post(`/api/payments/refund/${appointmentId}`),
     onSuccess: () => { toast.success('Reembolso procesado'); qc.invalidateQueries({ queryKey: ['payments', shopId] }) },
     onError: (err) => toast.error(err.response?.data?.message || 'Error al reembolsar'),
   })
@@ -287,7 +289,7 @@ export default function OwnerFinances() {
                   <p className="font-medium text-sm">{p.appointment?.client?.name || '—'}</p>
                   <p className="text-xs text-secondary">{formatDate(p.createdAt)} · {formatCurrency(p.amount)}</p>
                 </div>
-                <Button size="sm" variant="danger" onClick={() => refundPayment(p.id)} loading={refunding}>
+                <Button size="sm" variant="danger" onClick={() => refundPayment(p.appointmentId)} loading={refunding}>
                   Procesar reembolso
                 </Button>
               </div>

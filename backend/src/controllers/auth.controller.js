@@ -130,6 +130,22 @@ const changePasswordController = async (req, res) => {
   }
 }
 
+// Busca un usuario por email para que un dueño lo sume como barbero.
+// Responde 200 con { found: false } cuando no existe, no 404: "no hay cuenta
+// con ese correo" es la respuesta correcta a la pregunta, no un error.
+const findByEmailController = async (req, res) => {
+  try {
+    const { email } = req.query
+    if (!email) {
+      return res.status(400).json({ message: 'Se requiere el email como query param' })
+    }
+    const result = await authService.findUserByEmail(email, req.user.id)
+    res.status(200).json(result)
+  } catch (error) {
+    res.status(400).json({ message: error.message })
+  }
+}
+
 module.exports = {
   registerController,
   loginController,
@@ -139,4 +155,5 @@ module.exports = {
   verifyResetCodeController,
   resetPasswordController,
   changePasswordController,
+  findByEmailController,
 }

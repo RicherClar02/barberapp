@@ -43,8 +43,19 @@ export default function OwnerBarbers() {
 
   const { mutate: addBarber, isPending: adding } = useMutation({
     mutationFn: async (data) => {
-      const userRes = await api.get(`/api/auth/find-by-email?email=${data.email}`)
-      return api.post('/api/barbers', { userId: userRes.data.user.id, barbershopId: shopId, specialty: data.specialty, bio: data.bio })
+      const { data: lookup } = await api.get('/api/auth/find-by-email', {
+        params: { email: data.email },
+      })
+      // El backend responde 200 con found:false cuando no hay cuenta. Sin este
+      // chequeo, leer lookup.user.id explotaría con un TypeError en vez de
+      // mostrarle al dueño qué pasó.
+      if (!lookup.found) {
+        throw new Error('No hay ninguna cuenta con ese correo. El barbero tiene que registrarse primero en la app.')
+      }
+      if (lookup.user.role !== 'BARBER') {
+        throw new Error(`${lookup.user.name} tiene una cuenta, pero no está registrada como barbero.`)
+      }
+      return api.post('/api/barbers', { userId: lookup.user.id, barbershopId: shopId, specialty: data.specialty, bio: data.bio })
     },
     onSuccess: () => {
       toast.success('Barbero agregado')
@@ -52,7 +63,7 @@ export default function OwnerBarbers() {
       setAddOpen(false)
       setForm({ email: '', specialty: '', bio: '' })
     },
-    onError: (err) => toast.error(err.response?.data?.message || 'Error al agregar barbero'),
+    onError: (err) => toast.error(err.response?.data?.message || err.message || 'Error al agregar barbero'),
   })
 
   const { mutate: toggleBarber } = useMutation({

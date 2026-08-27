@@ -10,6 +10,7 @@ import NotFound from './pages/NotFound'
 
 // Owner pages
 import OwnerDashboard from './pages/owner/Dashboard'
+import OwnerCreateBarbershop from './pages/owner/CreateBarbershop'
 import OwnerBarbers from './pages/owner/Barbers'
 import OwnerServices from './pages/owner/Services'
 import OwnerSettings from './pages/owner/Settings'
@@ -128,6 +129,8 @@ export default function App() {
           {/* ─── Privadas: redirigen a /login sin sesión ─── */}
           {/* Owner */}
           <Route path="/owner/dashboard" element={<ProtectedRoute roles={['OWNER']}><OwnerDashboard /></ProtectedRoute>} />
+          {/* Alta de barbería: es la única página de owner que funciona sin tener una */}
+          <Route path="/owner/barbershop/new" element={<ProtectedRoute roles={['OWNER']}><OwnerCreateBarbershop /></ProtectedRoute>} />
           <Route path="/owner/barbers" element={<ProtectedRoute roles={['OWNER']}><OwnerBarbers /></ProtectedRoute>} />
           <Route path="/owner/services" element={<ProtectedRoute roles={['OWNER']}><OwnerServices /></ProtectedRoute>} />
           <Route path="/owner/settings" element={<ProtectedRoute roles={['OWNER']}><OwnerSettings /></ProtectedRoute>} />

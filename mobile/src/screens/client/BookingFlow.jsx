@@ -13,6 +13,7 @@ import { formatCurrency, formatDate, formatTime } from '../../utils/formatters'
 const STEPS = ['Barbero', 'Fecha', 'Hora', 'Confirmar']
 
 function canAdvance(step, barber, date, slot) {
+  if (step === 0) return !!barber
   if (step === 1) return !!date
   if (step === 2) return !!slot
   return true
@@ -48,13 +49,18 @@ export default function BookingFlow({ route, navigation }) {
     enabled: !!shopId,
   })
 
+  // serviceId es obligatorio: el backend calcula la duración del slot a partir
+  // del servicio y responde 400 sin él. El barbero también: no hay barbero
+  // "cualquiera" en el backend, así que no se consulta hasta tener uno elegido.
   const { data: slotsData } = useQuery({
-    queryKey: ['booking-slots', shopId, barber?.id, date],
+    queryKey: ['booking-slots', shopId, barber?.id, date, serviceId],
     queryFn: () =>
       api
-        .get(`/api/appointments/availability/${shopId}/${barber?.id || 'any'}/${date}`)
+        .get(`/api/appointments/availability/${shopId}/${barber.id}/${date}`, {
+          params: { serviceId },
+        })
         .then(r => r.data),
-    enabled: !!shopId && !!date,
+    enabled: !!shopId && !!barber?.id && !!date && !!serviceId,
   })
 
   const barbers = barbersData?.barbers || barbersData || []

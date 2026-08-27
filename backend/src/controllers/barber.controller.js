@@ -22,6 +22,16 @@ const getByShopController = async (req, res) => {
   }
 }
 
+// Perfil de barbero del usuario autenticado
+const getMyController = async (req, res) => {
+  try {
+    const barber = await barberService.getMyBarberProfile(req.user.id)
+    res.status(200).json({ barber })
+  } catch (error) {
+    res.status(404).json({ message: error.message })
+  }
+}
+
 // Perfil completo de un barbero por su ID
 const getByIdController = async (req, res) => {
   try {
@@ -53,4 +63,4 @@ const getCardByUserController = async (req, res) => {
   }
 }
 
-module.exports = { addBarberController, getByShopController, getByIdController, updateBarberController, getCardByUserController }
+module.exports = { addBarberController, getByShopController, getByIdController, getMyController, updateBarberController, getCardByUserController }

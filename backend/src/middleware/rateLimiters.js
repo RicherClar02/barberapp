@@ -113,9 +113,23 @@ const accountDeletionLimiter = rateLimit({
   message: { message: 'Demasiadas solicitudes de eliminación. Intenta en 1 hora.' },
 })
 
+// Búsqueda de usuario por email: 10 por dueño cada 15 min. El endpoint confirma
+// si un email tiene cuenta, así que en volumen serviría para enumerar usuarios.
+// Un dueño agregando barberos hace unas pocas consultas; 10 le sobran y a la vez
+// hacen inviable el barrido de un diccionario de correos.
+const findByEmailLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: perUserKey,
+  message: { message: 'Demasiadas búsquedas de usuarios. Intenta en 15 minutos.' },
+})
+
 module.exports = {
   registerLimiter,
   loginLimiter,
+  findByEmailLimiter,
   forgotPasswordLimiter,
   resetPasswordLimiter,
   changePasswordLimiter,

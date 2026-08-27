@@ -4,10 +4,10 @@ const passport = require('../config/passport')
 const {
   registerController, loginController, profileController, updateProfileController,
   forgotPasswordController, verifyResetCodeController, resetPasswordController,
-  changePasswordController,
+  changePasswordController, findByEmailController,
 } = require('../controllers/auth.controller')
-const { authMiddleware } = require('../middleware/auth.middleware')
-const { registerLimiter, loginLimiter, forgotPasswordLimiter, changePasswordLimiter } = require('../middleware/rateLimiters')
+const { authMiddleware, requireRole } = require('../middleware/auth.middleware')
+const { registerLimiter, loginLimiter, forgotPasswordLimiter, changePasswordLimiter, findByEmailLimiter } = require('../middleware/rateLimiters')
 const { validateRegister, validateLogin, validateForgotPassword, validateResetPassword, validateChangePassword, validateUpdateProfile } = require('../middleware/validate.middleware')
 
 /**
@@ -333,6 +333,45 @@ router.put(
   changePasswordLimiter,
   validateChangePassword,
   changePasswordController
+)
+
+/**
+ * @swagger
+ * /api/auth/find-by-email:
+ *   get:
+ *     summary: Buscar un usuario por email (solo dueños)
+ *     description: |
+ *       Permite al dueño confirmar que existe la cuenta antes de sumarla como
+ *       barbero. Devuelve el mínimo: id, nombre y rol. Restringido a OWNER
+ *       autenticado y limitado a 10 consultas cada 15 minutos por usuario,
+ *       porque en volumen serviría para enumerar cuentas. Cada consulta queda
+ *       registrada en el log de seguridad.
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: email
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Email exacto del usuario (no distingue mayúsculas)
+ *     responses:
+ *       200:
+ *         description: "{ found: false } o { found: true, user: { id, name, role } }"
+ *       400:
+ *         description: Falta el email
+ *       403:
+ *         description: Solo rol OWNER
+ *       429:
+ *         description: Demasiadas búsquedas
+ */
+router.get(
+  '/find-by-email',
+  authMiddleware,
+  requireRole('OWNER'),
+  findByEmailLimiter,
+  findByEmailController
 )
 
 module.exports = router

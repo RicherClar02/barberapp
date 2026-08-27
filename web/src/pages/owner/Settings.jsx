@@ -115,7 +115,7 @@ export default function OwnerSettings() {
     DAYS.map((d, i) => ({ day: i + 1, dayName: d, isOpen: true, openTime: '08:00', closeTime: '18:00' }))
   )
   const { mutate: saveSchedules, isPending: savingSchedules } = useMutation({
-    mutationFn: () => Promise.all(schedules.map(s => api.post('/api/schedules', { ...s, barbershopId: shopId }))),
+    mutationFn: () => Promise.all(schedules.map(s => api.post(`/api/schedules/${shopId}`, { ...s, barbershopId: shopId }))),
     onSuccess: () => toast.success('Horarios guardados'),
     onError: () => toast.error('Error al guardar horarios'),
   })

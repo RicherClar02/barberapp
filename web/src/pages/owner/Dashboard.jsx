@@ -3,7 +3,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { TrendingUp, TrendingDown, DollarSign, Scissors, Calendar, Star, AlertTriangle, CheckCircle2, Circle } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import api from '../../api/axios'
 import useAuthStore from '../../store/authStore'
 import Badge from '../../components/ui/Badge'
@@ -14,12 +14,18 @@ import toast from 'react-hot-toast'
 export default function OwnerDashboard() {
   const { user } = useAuthStore()
 
-  const { data: shopData } = useQuery({
+  const { data: shopData, isSuccess: shopLoaded } = useQuery({
     queryKey: ['my-barbershops'],
     queryFn: () => api.get('/api/barbershops/my').then(r => r.data),
   })
   const shop = shopData?.barbershops?.[0] || shopData?.[0]
   const shopId = shop?.id
+
+  // Un dueño recién aprobado todavía no tiene barbería. Sin esto el dashboard
+  // (y las otras 7 páginas de owner) quedaban en blanco y sin salida, porque
+  // todas arrancan por /api/barbershops/my. Se espera a isSuccess para no
+  // redirigir durante la carga inicial.
+  const hasNoShop = shopLoaded && !shopId
 
   // Plan vencido: la barbería deja de ser visible para nuevos clientes
   const planExpired = shop && (
@@ -103,6 +109,8 @@ export default function OwnerDashboard() {
       trendUp: null,
     },
   ]
+
+  if (hasNoShop) return <Navigate to="/owner/barbershop/new" replace />
 
   return (
     <div className="space-y-6">
@@ -238,7 +246,7 @@ export default function OwnerDashboard() {
                             </button>
                           )}
                           {row.status !== 'COMPLETED' && row.status !== 'CANCELLED' && row.status !== 'NO_SHOW' && (
-                            <button onClick={() => handleAction(row.id, 'noshow')}
+                            <button onClick={() => handleAction(row.id, 'no-show')}
                               className="px-2 py-1 text-xs bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors">
                               ✕
                             </button>
