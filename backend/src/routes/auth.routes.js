@@ -4,10 +4,11 @@ const passport = require('../config/passport')
 const {
   registerController, loginController, profileController, updateProfileController,
   forgotPasswordController, verifyResetCodeController, resetPasswordController,
+  changePasswordController,
 } = require('../controllers/auth.controller')
 const { authMiddleware } = require('../middleware/auth.middleware')
-const { registerLimiter, loginLimiter, forgotPasswordLimiter } = require('../middleware/rateLimiters')
-const { validateRegister, validateLogin, validateForgotPassword, validateResetPassword, validateUpdateProfile } = require('../middleware/validate.middleware')
+const { registerLimiter, loginLimiter, forgotPasswordLimiter, changePasswordLimiter } = require('../middleware/rateLimiters')
+const { validateRegister, validateLogin, validateForgotPassword, validateResetPassword, validateChangePassword, validateUpdateProfile } = require('../middleware/validate.middleware')
 
 /**
  * @swagger
@@ -291,5 +292,47 @@ router.post('/verify-reset-code', verifyResetCodeController)
  *         description: Código inválido o expirado
  */
 router.post('/reset-password', validateResetPassword, resetPasswordController)
+
+/**
+ * @swagger
+ * /api/auth/change-password:
+ *   put:
+ *     summary: Cambiar la contraseña con la sesión iniciada
+ *     description: >
+ *       Requiere la contraseña actual. Al cambiarla se incrementa tokenVersion,
+ *       lo que invalida todos los JWTs anteriores (incluido el de esta request):
+ *       el cliente debe volver a iniciar sesión.
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [currentPassword, newPassword]
+ *             properties:
+ *               currentPassword:
+ *                 type: string
+ *               newPassword:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Contraseña actualizada
+ *       400:
+ *         description: La nueva contraseña no cumple los requisitos, es igual a la actual, o la cuenta es de OAuth
+ *       401:
+ *         description: La contraseña actual es incorrecta, o token inválido
+ *       429:
+ *         description: Demasiados intentos de cambio de contraseña
+ */
+router.put(
+  '/change-password',
+  authMiddleware,
+  changePasswordLimiter,
+  validateChangePassword,
+  changePasswordController
+)
 
 module.exports = router

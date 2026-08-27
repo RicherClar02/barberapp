@@ -6,6 +6,7 @@ const emailService = require('./email.service')
 const { logFailedLogin, logAccountLocked } = require('../utils/securityLog')
 const { checkRegistrationIpAbuse } = require('./fraud.service')
 const { TERMS_VERSION, PRIVACY_VERSION } = require('../constants/legal')
+const { PASSWORD_MIN, PASSWORD_MAX, PASSWORD_LENGTH_MESSAGE } = require('../constants/password')
 
 const JWT_ISSUER = 'estilo-api'
 const JWT_AUDIENCE = 'estilo-clients'
@@ -302,4 +303,65 @@ const resetPassword = async (email, code, newPassword) => {
   return { message: 'Contraseña actualizada correctamente. Vuelve a iniciar sesión.' }
 }
 
-module.exports = { register, login, getProfile, updateProfile, forgotPassword, verifyResetCode, resetPassword }
+// Cambio de contraseña desde el perfil, con la sesión ya iniciada. A diferencia
+// de resetPassword (que prueba identidad con el OTP del correo), acá la prueba
+// es la contraseña actual, así que se compara contra el hash del usuario del
+// token: nadie puede cambiarle la contraseña a otro.
+const changePassword = async (userId, currentPassword, newPassword) => {
+  const user = await prisma.user.findUnique({ where: { id: userId } })
+  if (!user) {
+    const error = new Error('Usuario no encontrado')
+    error.status = 404
+    throw error
+  }
+
+  // Cuentas creadas por Google/Facebook no tienen hash local contra el cual
+  // comparar. Decirlo explícito evita que el dueño crea que se equivocó al
+  // escribir una contraseña que nunca existió.
+  if (!user.password) {
+    const error = new Error('Tu cuenta inicia sesión con Google o Facebook, no tiene una contraseña que cambiar')
+    error.status = 400
+    throw error
+  }
+
+  const isValid = await bcrypt.compare(currentPassword, user.password)
+  if (!isValid) {
+    const error = new Error('La contraseña actual es incorrecta')
+    error.status = 401
+    throw error
+  }
+
+  // Recién con la identidad probada se evalúa la nueva. El mensaje es distinto
+  // del anterior a propósito: son dos fallos distintos y el usuario tiene que
+  // saber cuál de los dos campos corregir.
+  if (newPassword.length < PASSWORD_MIN || newPassword.length > PASSWORD_MAX) {
+    const error = new Error(`La nueva contraseña no cumple los requisitos: ${PASSWORD_LENGTH_MESSAGE.toLowerCase()}`)
+    error.status = 400
+    throw error
+  }
+
+  if (newPassword === currentPassword) {
+    const error = new Error('La nueva contraseña debe ser distinta de la actual')
+    error.status = 400
+    throw error
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10)
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      password: hashedPassword,
+      // Igual que resetPassword: invalida todos los JWTs previos, incluido el
+      // que hizo esta misma request. Si la contraseña se cambió porque la
+      // anterior estaba comprometida, dejar vivas las sesiones viejas anularía
+      // el motivo del cambio.
+      tokenVersion: { increment: 1 },
+      loginAttempts: 0,
+      lockedUntil: null,
+    },
+  })
+
+  return { message: 'Contraseña actualizada correctamente. Vuelve a iniciar sesión.' }
+}
+
+module.exports = { register, login, getProfile, updateProfile, forgotPassword, verifyResetCode, resetPassword, changePassword }

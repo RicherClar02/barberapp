@@ -112,6 +112,24 @@ const resetPasswordController = async (req, res) => {
   }
 }
 
+const changePasswordController = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'La contraseña actual y la nueva son obligatorias' })
+    }
+
+    // req.user.id viene del JWT verificado por authMiddleware: el usuario solo
+    // puede cambiar su propia contraseña, no la de un id que mande en el body.
+    const result = await authService.changePassword(req.user.id, currentPassword, newPassword)
+    res.status(200).json(result)
+  } catch (error) {
+    // 401 si falló la contraseña actual, 400 si falló la nueva. El status
+    // distingue los dos casos tanto como el mensaje.
+    res.status(error.status || 400).json({ message: error.message })
+  }
+}
+
 module.exports = {
   registerController,
   loginController,
@@ -120,4 +138,5 @@ module.exports = {
   forgotPasswordController,
   verifyResetCodeController,
   resetPasswordController,
+  changePasswordController,
 }

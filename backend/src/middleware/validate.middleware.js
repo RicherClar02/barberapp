@@ -1,4 +1,5 @@
 const { body, validationResult } = require('express-validator')
+const { PASSWORD_MIN, PASSWORD_MAX, PASSWORD_LENGTH_MESSAGE } = require('../constants/password')
 
 // Validación y sanitización de inputs con express-validator.
 // Reglas generales: trim + escape en strings libres (anti-XSS),
@@ -32,7 +33,7 @@ const validateRegister = runValidations([
   body('name').trim().notEmpty().withMessage('Nombre requerido')
     .isLength({ max: 100 }).withMessage('Nombre máximo 100 caracteres').escape(),
   body('email').trim().isEmail().withMessage('Email inválido').normalizeEmail(),
-  body('password').isLength({ min: 6, max: 128 }).withMessage('Contraseña entre 6 y 128 caracteres'),
+  body('password').isLength({ min: PASSWORD_MIN, max: PASSWORD_MAX }).withMessage(PASSWORD_LENGTH_MESSAGE),
   body('phone').optional({ values: 'falsy' }).custom(colombianPhone),
   body('role').optional().isIn(['CLIENT', 'BARBER', 'OWNER']).withMessage('Rol inválido'),
   body('department').optional({ values: 'falsy' }).trim().isLength({ max: 100 }).escape(),
@@ -51,7 +52,17 @@ const validateForgotPassword = runValidations([
 const validateResetPassword = runValidations([
   body('email').trim().isEmail().withMessage('Email inválido').normalizeEmail(),
   body('code').trim().isLength({ min: 6, max: 6 }).withMessage('Código de 6 dígitos').isNumeric(),
-  body('newPassword').isLength({ min: 6, max: 128 }).withMessage('Contraseña entre 6 y 128 caracteres'),
+  body('newPassword').isLength({ min: PASSWORD_MIN, max: PASSWORD_MAX }).withMessage(PASSWORD_LENGTH_MESSAGE),
+])
+
+// Solo presencia. La política de longitud la aplica auth.service.changePassword
+// para poder responder con un `message` propio ("la nueva no cumple los
+// requisitos") en vez del genérico "Datos inválidos" de runValidations: el
+// panel muestra ese campo tal cual y el usuario necesita saber cuál de las dos
+// contraseñas está mal.
+const validateChangePassword = runValidations([
+  body('currentPassword').notEmpty().withMessage('Contraseña actual requerida'),
+  body('newPassword').notEmpty().withMessage('Nueva contraseña requerida'),
 ])
 
 const validateUpdateProfile = runValidations([
@@ -100,6 +111,7 @@ module.exports = {
   validateLogin,
   validateForgotPassword,
   validateResetPassword,
+  validateChangePassword,
   validateUpdateProfile,
   validateCreateReview,
   validateCreateAppointment,

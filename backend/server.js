@@ -200,6 +200,15 @@ app.get('/health', async (req, res) => {
   })
 })
 
+// 404 en JSON. El default de Express responde HTML ("Cannot PUT /api/..."),
+// y tanto el panel web como la app leen err.response.data.message: con HTML
+// ese campo queda undefined y el frontend cae a su mensaje por defecto, que
+// puede afirmar una causa equivocada. Debe ir después de todas las rutas y
+// antes del manejador de errores.
+app.use((req, res) => {
+  res.status(404).json({ message: `Ruta no encontrada: ${req.method} ${req.originalUrl}` })
+})
+
 // Middleware global de errores: en producción NUNCA exponer stack
 // traces ni mensajes crudos de Prisma. El detalle se loguea solo
 // en el servidor.

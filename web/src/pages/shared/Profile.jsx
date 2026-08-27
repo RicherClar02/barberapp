@@ -73,7 +73,7 @@ export default function Profile() {
       toast.success('Perfil actualizado')
       qc.invalidateQueries({ queryKey: ['profile'] })
     },
-    onError: (err) => toast.error(err.response?.data?.message || 'Error al guardar'),
+    onError: (err) => toast.error(err.response?.data?.message || 'No se pudo guardar el perfil. Intenta de nuevo.'),
   })
 
   const { mutate: changePassword, isPending: changingPw } = useMutation({
@@ -83,7 +83,10 @@ export default function Profile() {
       setPwForm({ current: '', next: '', confirm: '' })
       setPwErrors({})
     },
-    onError: (err) => toast.error(err.response?.data?.message || 'Contraseña actual incorrecta'),
+    // Sin mensaje del servidor no sabemos por qué falló: el fallback dice que
+    // falló, no por qué. Afirmar "contraseña actual incorrecta" acá fue lo que
+    // ocultó durante meses que la ruta ni siquiera existía.
+    onError: (err) => toast.error(err.response?.data?.message || 'No se pudo cambiar la contraseña. Intenta de nuevo.'),
   })
 
   const handleAvatarChange = async (e) => {
@@ -98,7 +101,7 @@ export default function Profile() {
       if (avatarUrl) updateUser({ avatar: avatarUrl })
       toast.success('Foto de perfil actualizada')
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Error al subir imagen')
+      toast.error(err.response?.data?.message || 'No se pudo subir la imagen. Intenta de nuevo.')
     } finally {
       setUploadingAvatar(false)
     }

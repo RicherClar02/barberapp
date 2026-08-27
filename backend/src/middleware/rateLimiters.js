@@ -47,6 +47,19 @@ const resetPasswordLimiter = rateLimit({
   message: { message: 'Demasiados intentos con el código. Intenta en 15 minutos o solicita uno nuevo.' },
 })
 
+// Cambio de contraseña: 5 por usuario cada 15 min. Frena el brute force de la
+// contraseña actual sobre una sesión ya robada. Se monta DESPUÉS de
+// authMiddleware para poder usar req.user.id: si la clave fuera la IP, una
+// oficina o una red móvil compartida se bloquearían entre sí.
+const changePasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: perUserKey,
+  message: { message: 'Demasiados intentos de cambio de contraseña. Intenta en 15 minutos.' },
+})
+
 // Reseñas: 5 por usuario al día (anti-inflado de ratings)
 const reviewLimiter = rateLimit({
   windowMs: 24 * 60 * 60 * 1000,
@@ -105,6 +118,7 @@ module.exports = {
   loginLimiter,
   forgotPasswordLimiter,
   resetPasswordLimiter,
+  changePasswordLimiter,
   reviewLimiter,
   appointmentLimiter,
   chatbotLimiter,
