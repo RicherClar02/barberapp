@@ -1,6 +1,6 @@
 const prisma = require('../lib/prisma')
 
-const BARBER_LIMITS = { BASIC: 1, STANDARD: 3, PREMIUM: Infinity }
+const BARBER_LIMITS = { BASIC: 2, STANDARD: 4, PREMIUM: Infinity }
 
 // Convierte un usuario existente en barbero de una barbería
 const addBarber = async ({ userId, barbershopId, specialty, bio }, ownerId) => {
