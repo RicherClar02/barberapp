@@ -26,6 +26,55 @@ export const fontSize = {
   xxxl: 36,
 }
 
+// Nombres de familia tal como los registra useFonts en App.js. Se exportan
+// aparte para poder componer estilos puntuales sin repetir el literal.
+export const fontFamily = {
+  heading: 'Poppins_600SemiBold',
+  headingBold: 'Poppins_700Bold',
+  body: 'Inter_400Regular',
+  bodyMedium: 'Inter_500Medium',
+  bodySemiBold: 'Inter_600SemiBold',
+}
+
+// Estilos de texto nombrados. Poppins para títulos, Inter para cuerpo.
+// Los lineHeight son absolutos porque React Native no acepta múltiplos.
+//
+// Si las fuentes no cargan, App.js arranca igual y RN cae a la fuente del
+// sistema: se pierde la familia, pero el tamaño y el interlineado se respetan,
+// así que ninguna pantalla se descuadra.
+export const typography = {
+  h1: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: fontSize.xxxl,
+    lineHeight: 44,
+  },
+  h2: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: fontSize.xxl,
+    lineHeight: 36,
+  },
+  h3: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: fontSize.xl,
+    lineHeight: 30,
+  },
+  body: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: fontSize.md,
+    lineHeight: 24,
+  },
+  bodyBold: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: fontSize.md,
+    lineHeight: 24,
+  },
+  caption: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: fontSize.xs,
+    lineHeight: 16,
+  },
+}
+
 export const spacing = {
   xs: 4,
   sm: 8,
