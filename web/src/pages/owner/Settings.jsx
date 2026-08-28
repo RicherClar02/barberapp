@@ -120,6 +120,33 @@ export default function OwnerSettings() {
   const [schedules, setSchedules] = useState(
     DAYS.map((d, i) => ({ dayOfWeek: DAY_OF_WEEK[i], dayName: d, isOpen: true, openTime: '08:00', closeTime: '18:00' }))
   )
+
+  // Faltaba por completo: el formulario se armaba siempre con los valores en
+  // duro de arriba, así que al recargar parecía que lo guardado se había
+  // perdido. Los datos sí estaban en la base; nunca se leían.
+  const { data: schedulesData } = useQuery({
+    queryKey: ['schedules', shopId],
+    queryFn: () => api.get(`/api/schedules/${shopId}`).then(r => r.data),
+    enabled: !!shopId,
+  })
+
+  useEffect(() => {
+    const filas = schedulesData?.schedules
+    if (!filas?.length) return
+    // Mapeo POR dayOfWeek, no por posición: el GET ordena por dayOfWeek
+    // ascendente, o sea domingo (0) primero, mientras que DAYS pinta lunes
+    // primero. Asignar por índice correría los siete días y pondría el horario
+    // del domingo bajo la etiqueta "Lunes".
+    setSchedules(DAYS.map((dayName, i) => {
+      const dayOfWeek = DAY_OF_WEEK[i]
+      const fila = filas.find(f => f.dayOfWeek === dayOfWeek)
+      return fila
+        ? { dayOfWeek, dayName, isOpen: fila.isOpen, openTime: fila.openTime, closeTime: fila.closeTime }
+        // Día sin fila guardada: se deja el default en vez de dejarlo vacío.
+        : { dayOfWeek, dayName, isOpen: true, openTime: '08:00', closeTime: '18:00' }
+    }))
+  }, [schedulesData])
+
   // Una sola petición con la semana entera: el endpoint es setWeekSchedule y
   // recorre el array del lado del servidor. Mandar siete en paralelo duplicaba
   // filas (cada una hacía su propio findFirst antes de crear) y podía dejar la
@@ -132,28 +159,52 @@ export default function OwnerSettings() {
         dayOfWeek, isOpen, openTime, closeTime,
       })),
     }),
-    onSuccess: () => toast.success('Horarios guardados'),
+    onSuccess: () => {
+      toast.success('Horarios guardados')
+      qc.invalidateQueries({ queryKey: ['schedules', shopId] })
+    },
     onError: (err) => toast.error(err.response?.data?.message || 'Error al guardar horarios'),
   })
 
-  const [barberPct, setBarberPct] = useState(configData?.config?.barberPercentage || 60)
+  // Los tres arrancan en los defaults del modelo y se sincronizan abajo. El
+  // inicializador de useState solo corre en el primer render, cuando configData
+  // todavía es undefined porque la query no resolvió: por eso leer la config ahí
+  // dejaba los valores clavados en 60/40 y 10 cortes aunque la barbería tuviera
+  // otra cosa guardada. Mismo patrón que `info` con `shop`.
+  const [barberPct, setBarberPct] = useState(60)
+  const [loyaltyActive, setLoyaltyActive] = useState(true)
+  const [loyaltyVisits, setLoyaltyVisits] = useState(10)
+
+  useEffect(() => {
+    const c = configData?.config
+    if (!c) return
+    setBarberPct(c.barberPercentage ?? 60)
+    setLoyaltyActive(c.loyaltyEnabled ?? true)
+    // El campo del modelo es cutsForFreeService. Antes se leía primero
+    // c.loyaltyVisits, que no existe en BarberShopConfig: rama muerta.
+    setLoyaltyVisits(c.cutsForFreeService ?? 10)
+  }, [configData])
+
   const shopPct = 100 - barberPct
   const exampleCut = 25000
   const { mutate: saveConfig, isPending: savingConfig } = useMutation({
     mutationFn: () => api.put(`/api/config/${shopId}`, { barberPercentage: barberPct, shopPercentage: shopPct }),
-    onSuccess: () => toast.success('Configuración guardada'),
-    onError: () => toast.error('Error'),
+    onSuccess: () => {
+      toast.success('Configuración guardada')
+      qc.invalidateQueries({ queryKey: ['config', shopId] })
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Error'),
   })
-
-  const [loyaltyActive, setLoyaltyActive] = useState(configData?.config?.loyaltyEnabled ?? true)
-  const [loyaltyVisits, setLoyaltyVisits] = useState(configData?.config?.loyaltyVisits || configData?.config?.cutsForFreeService || 10)
 
   const { mutate: saveLoyalty, isPending: savingLoyalty } = useMutation({
     mutationFn: () => api.put(`/api/config/${shopId}`, {
       loyaltyEnabled: loyaltyActive,
       cutsForFreeService: loyaltyVisits,
     }),
-    onSuccess: () => toast.success('Configuración de fidelización guardada'),
+    onSuccess: () => {
+      toast.success('Configuración de fidelización guardada')
+      qc.invalidateQueries({ queryKey: ['config', shopId] })
+    },
     onError: (err) => toast.error(err.response?.data?.message || 'Error al guardar'),
   })
 
