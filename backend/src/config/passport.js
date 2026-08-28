@@ -5,6 +5,7 @@ const GoogleStrategy = require('passport-google-oauth20').Strategy
 const FacebookStrategy = require('passport-facebook').Strategy
 const jwt = require('jsonwebtoken')
 const prisma = require('../lib/prisma')
+const { normalizeEmail } = require('../utils/email')
 
 const generateToken = (user) =>
   jwt.sign(
@@ -17,8 +18,16 @@ const generateToken = (user) =>
     }
   )
 
-const handleOAuthUser = async (provider, providerId, email, name, avatar) => {
+const handleOAuthUser = async (provider, providerId, rawEmail, name, avatar) => {
   const providerField = provider === 'google' ? 'googleId' : 'facebookId'
+
+  // El email del proveedor pasa por la misma normalización que el registro. Sin
+  // esto, si Google o Facebook devuelven el correo con una forma distinta a la
+  // guardada (mayúsculas, o un dominio corporativo con puntos), el findUnique de
+  // abajo no encontraría la fila y el else crearía una cuenta NUEVA en vez de
+  // vincular la existente: el usuario perdería sus citas e historial sin ningún
+  // aviso, y quedarían dos filas para la misma persona.
+  const email = normalizeEmail(rawEmail)
 
   // Buscar por providerId
   let user = await prisma.user.findFirst({ where: { [providerField]: providerId } })

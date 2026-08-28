@@ -5,7 +5,7 @@ const assert = require('node:assert')
 // antes de pedir los servicios para que lib/prisma nunca abra un pg.Pool.
 const prismaPath = require.resolve('../src/lib/prisma')
 
-const db = { barbero: null, usuario: null, ultimoFindUnique: null, ultimoFindFirst: null }
+const db = { barbero: null, usuario: null, ultimoFindUnique: null, ultimoFindFirst: null, ultimoFindUniqueUser: null }
 
 const prisma = {
   barber: {
@@ -19,7 +19,10 @@ const prisma = {
     update: async ({ data }) => data,
   },
   user: {
-    findUnique: async () => db.usuario,
+    findUnique: async (args) => {
+      db.ultimoFindUniqueUser = args
+      return db.usuario
+    },
     findFirst: async (args) => {
       db.ultimoFindFirst = args
       return db.usuario
@@ -83,7 +86,7 @@ test('getMyBarberProfile no expone la contraseña del usuario', async () => {
 
 test('findUserByEmail devuelve solo id, nombre y rol', async () => {
   db.usuario = { id: 'user-9', name: 'Juan', role: 'BARBER' }
-  db.ultimoFindFirst = null
+  db.ultimoFindUniqueUser = null
 
   const res = await authService.findUserByEmail('juan@mail.com', 'owner-1')
 
@@ -91,7 +94,7 @@ test('findUserByEmail devuelve solo id, nombre y rol', async () => {
   // Nada de teléfono, ciudad, isVerified ni createdAt: el endpoint solo
   // responde "¿existe esta cuenta y sirve como barbero?".
   assert.deepStrictEqual(Object.keys(res.user).sort(), ['id', 'name', 'role'])
-  const seleccionados = Object.keys(db.ultimoFindFirst.where ? db.ultimoFindFirst.select : {})
+  const seleccionados = Object.keys(db.ultimoFindUniqueUser.select || {})
   assert.deepStrictEqual(seleccionados.sort(), ['id', 'name', 'role'])
 })
 
@@ -103,18 +106,17 @@ test('findUserByEmail responde found:false en vez de lanzar cuando no existe', a
   assert.deepStrictEqual(res, { found: false })
 })
 
-test('findUserByEmail busca sin distinguir mayúsculas', async () => {
+test('findUserByEmail busca por el email normalizado', async () => {
   db.usuario = { id: 'user-9', name: 'Juan', role: 'BARBER' }
-  db.ultimoFindFirst = null
+  db.ultimoFindUniqueUser = null
 
   await authService.findUserByEmail('  Juan@Mail.com  ', 'owner-1')
 
-  // register guarda el email tal cual lo escribió el usuario, así que una
-  // búsqueda sensible a mayúsculas daría "no existe" con la cuenta ahí.
-  assert.deepStrictEqual(db.ultimoFindFirst.where.email, {
-    equals: 'Juan@Mail.com',
-    mode: 'insensitive',
-  })
+  // register guarda el email NORMALIZADO, así que la búsqueda tiene que aplicar
+  // la misma regla. Con findUnique sobre el normalizado alcanza la comparación
+  // exacta y se usa el índice único. Cobertura completa en
+  // email-normalization.test.js.
+  assert.strictEqual(db.ultimoFindUniqueUser.where.email, 'juan@mail.com')
 })
 
 test('findUserByEmail rechaza un email vacío', async () => {

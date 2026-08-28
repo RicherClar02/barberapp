@@ -5,6 +5,7 @@ const emailService = require('./email.service')
 
 const { logFailedLogin, logAccountLocked, logUserLookup } = require('../utils/securityLog')
 const { checkRegistrationIpAbuse } = require('./fraud.service')
+const { normalizeEmail } = require('../utils/email')
 const { TERMS_VERSION, PRIVACY_VERSION } = require('../constants/legal')
 const { PASSWORD_MIN, PASSWORD_MAX, PASSWORD_LENGTH_MESSAGE } = require('../constants/password')
 
@@ -26,7 +27,8 @@ const generateToken = (user) => {
   )
 }
 
-const register = async ({ name, email, password, phone, role, department, city }, ip = null, userAgent = null) => {
+const register = async ({ name, email: rawEmail, password, phone, role, department, city }, ip = null, userAgent = null) => {
+  const email = normalizeEmail(rawEmail)
   const existingUser = await prisma.user.findUnique({ where: { email } })
   if (existingUser) {
     throw new Error('El correo ya está registrado')
@@ -97,7 +99,8 @@ const register = async ({ name, email, password, phone, role, department, city }
   return { user, token }
 }
 
-const login = async ({ email, password }, ip = null) => {
+const login = async ({ email: rawEmail, password }, ip = null) => {
+  const email = normalizeEmail(rawEmail)
   const user = await prisma.user.findUnique({ where: { email } })
   if (!user) {
     logFailedLogin(email, ip)
@@ -225,7 +228,8 @@ const updateProfile = async (userId, data) => {
   })
 }
 
-const forgotPassword = async (email) => {
+const forgotPassword = async (rawEmail) => {
+  const email = normalizeEmail(rawEmail)
   const user = await prisma.user.findUnique({ where: { email } })
   // Always return success to avoid user enumeration
   if (!user) return { message: 'Si el correo existe, recibirás un código de verificación.' }
@@ -253,7 +257,8 @@ const forgotPassword = async (email) => {
   return { message: 'Si el correo existe, recibirás un código de verificación.' }
 }
 
-const verifyResetCode = async (email, code) => {
+const verifyResetCode = async (rawEmail, code) => {
+  const email = normalizeEmail(rawEmail)
   const user = await prisma.user.findUnique({ where: { email } })
   if (!user || !user.resetToken || !user.resetTokenExpiry) {
     throw new Error('Código inválido o expirado')
@@ -271,7 +276,8 @@ const verifyResetCode = async (email, code) => {
   return { valid: true }
 }
 
-const resetPassword = async (email, code, newPassword) => {
+const resetPassword = async (rawEmail, code, newPassword) => {
+  const email = normalizeEmail(rawEmail)
   const user = await prisma.user.findUnique({ where: { email } })
   if (!user || !user.resetToken || !user.resetTokenExpiry) {
     throw new Error('Código inválido o expirado')
@@ -370,18 +376,23 @@ const changePassword = async (userId, currentPassword, newPassword) => {
 // confirmar "es este Juan" y para nada más. El rol viaja porque addBarber exige
 // que sea BARBER: sin él el dueño no puede entender por qué falla el alta.
 const findUserByEmail = async (email, requesterId) => {
-  const normalized = String(email || '').trim()
-  if (!normalized) throw new Error('Email requerido')
+  if (!String(email ?? '').trim()) throw new Error('Email requerido')
+  // Corrige el comentario anterior, que decía que register guardaba el email
+  // "tal cual lo escribió el usuario": es falso. register lo guarda normalizado,
+  // así que buscar sin normalizar dejaba fuera a cualquiera cuyo correo cambie
+  // al normalizarse. Un barbero registrado como carlos.ramirez+trabajo@gmail.com
+  // está guardado como carlosramirez@gmail.com, y el dueño que escribía la forma
+  // larga recibía "no hay ninguna cuenta con ese correo" siendo que sí existe.
+  const normalized = normalizeEmail(email)
 
-  // findFirst + insensitive, no findUnique: register guarda el email tal cual lo
-  // escribió el usuario, así que buscar en minúsculas no encontraría a alguien
-  // registrado como Juan@Mail.com.
-  const user = await prisma.user.findFirst({
-    where: { email: { equals: normalized, mode: 'insensitive' } },
+  // findUnique, no findFirst con mode:'insensitive': normalizeEmail ya pasa todo
+  // a minúsculas, así que la comparación exacta alcanza y usa el índice único.
+  const user = await prisma.user.findUnique({
+    where: { email: normalized },
     select: { id: true, name: true, role: true }
   })
 
-  logUserLookup(requesterId, normalized.toLowerCase(), !!user)
+  logUserLookup(requesterId, normalized, !!user)
 
   if (!user) return { found: false }
   return { found: true, user }
