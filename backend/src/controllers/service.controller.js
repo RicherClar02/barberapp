@@ -1,11 +1,12 @@
 const serviceService = require('../services/service.service')
+const { safeMessage } = require('../utils/safeError')
 
 const createController = async (req, res) => {
   try {
     const service = await serviceService.createService(req.body, req.user.id)
     res.status(201).json({ message: 'Servicio creado exitosamente', service })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -15,7 +16,7 @@ const getByShopController = async (req, res) => {
     const services = await serviceService.getServicesByShop(req.params.shopId)
     res.status(200).json({ services })
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    res.status(500).json({ message: safeMessage(error) })
   }
 }
 
@@ -24,7 +25,7 @@ const updateController = async (req, res) => {
     const service = await serviceService.updateService(req.params.id, req.body, req.user.id)
     res.status(200).json({ message: 'Servicio actualizado', service })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -35,7 +36,7 @@ const deleteController = async (req, res) => {
     await serviceService.deleteService(req.params.id, req.user.id)
     res.status(200).json({ message: 'Servicio eliminado correctamente' })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 

@@ -1,11 +1,12 @@
 const waitlistService = require('../services/waitlist.service')
+const { safeMessage } = require('../utils/safeError')
 
 const joinController = async (req, res) => {
   try {
     const entry = await waitlistService.joinWaitlist(req.body, req.user.id)
     res.status(201).json({ message: 'Te uniste a la lista de espera', entry })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -14,7 +15,7 @@ const getMyController = async (req, res) => {
     const entries = await waitlistService.getMyWaitlist(req.user.id)
     res.status(200).json({ entries })
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    res.status(500).json({ message: safeMessage(error) })
   }
 }
 
@@ -23,7 +24,7 @@ const leaveController = async (req, res) => {
     const result = await waitlistService.leaveWaitlist(req.params.id, req.user.id)
     res.status(200).json(result)
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -38,7 +39,7 @@ const getShopController = async (req, res) => {
     )
     res.status(200).json({ entries })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 

@@ -1,4 +1,5 @@
 const barberCardService = require('../services/barber-card.service')
+const { safeMessage } = require('../utils/safeError')
 
 const getBarberCardController = async (req, res) => {
   try {
@@ -8,7 +9,7 @@ const getBarberCardController = async (req, res) => {
     )
     res.status(200).json(card)
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 

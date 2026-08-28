@@ -1,4 +1,5 @@
 const barbershopService = require('../services/barbershop.service')
+const { safeMessage } = require('../utils/safeError')
 
 // Recibe los datos del body y llama al servicio para crear la barbería
 // El ownerId lo saca del token JWT (req.user.id), no del body
@@ -8,7 +9,7 @@ const createController = async (req, res) => {
     const barbershop = await barbershopService.createBarbershop(req.body, req.user.id)
     res.status(201).json({ message: 'Barbería creada exitosamente', barbershop })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -20,7 +21,7 @@ const getAllController = async (req, res) => {
     const barbershops = await barbershopService.getAllBarbershops(req.query, req.user || null)
     res.status(200).json({ barbershops })
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    res.status(500).json({ message: safeMessage(error) })
   }
 }
 
@@ -31,7 +32,7 @@ const getByIdController = async (req, res) => {
     const barbershop = await barbershopService.getBarbershopById(req.params.id)
     res.status(200).json({ barbershop })
   } catch (error) {
-    res.status(404).json({ message: error.message })
+    res.status(404).json({ message: safeMessage(error) })
   }
 }
 
@@ -41,7 +42,7 @@ const updateController = async (req, res) => {
     const barbershop = await barbershopService.updateBarbershop(req.params.id, req.body, req.user.id)
     res.status(200).json({ message: 'Barbería actualizada', barbershop })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -52,7 +53,7 @@ const getMyBarbershopsController = async (req, res) => {
     const barbershops = await barbershopService.getMyBarbershops(req.user.id)
     res.status(200).json({ barbershops })
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    res.status(500).json({ message: safeMessage(error) })
   }
 }
 
@@ -62,7 +63,7 @@ const getCompletenessController = async (req, res) => {
     const completeness = await barbershopService.getCompleteness(req.params.id, req.user.id)
     res.status(200).json(completeness)
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 

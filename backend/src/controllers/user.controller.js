@@ -1,4 +1,5 @@
 const userService = require('../services/user.service')
+const { safeMessage } = require('../utils/safeError')
 
 // Se descarga como archivo: la app móvil y el navegador lo guardan
 // directamente en vez de mostrar un JSON gigante en pantalla.
@@ -11,7 +12,7 @@ const dataExportController = async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="estilo-mis-datos-${stamp}.json"`)
     res.status(200).send(JSON.stringify(data, null, 2))
   } catch (error) {
-    res.status(error.status || 500).json({ message: error.message })
+    res.status(error.status || 500).json({ message: safeMessage(error) })
   }
 }
 
@@ -30,7 +31,7 @@ const deleteAccountController = async (req, res) => {
     const result = await userService.deleteOwnAccount(req.user.id, password)
     res.status(200).json(result)
   } catch (error) {
-    res.status(error.status || 400).json({ message: error.message })
+    res.status(error.status || 400).json({ message: safeMessage(error) })
   }
 }
 
@@ -43,7 +44,7 @@ const requestDeletionController = async (req, res) => {
     const result = await userService.requestAccountDeletion(email)
     res.status(200).json(result)
   } catch (error) {
-    res.status(error.status || 500).json({ message: error.message })
+    res.status(error.status || 500).json({ message: safeMessage(error) })
   }
 }
 
@@ -55,7 +56,7 @@ const confirmDeletionController = async (req, res) => {
     const result = await userService.confirmAccountDeletion(token)
     res.status(200).json(result)
   } catch (error) {
-    res.status(error.status || 400).json({ message: error.message })
+    res.status(error.status || 400).json({ message: safeMessage(error) })
   }
 }
 

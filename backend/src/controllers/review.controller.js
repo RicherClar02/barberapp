@@ -1,4 +1,5 @@
 const reviewService = require('../services/review.service')
+const { safeMessage } = require('../utils/safeError')
 
 // Cliente crea una reseña para una cita completada
 const createController = async (req, res) => {
@@ -6,7 +7,7 @@ const createController = async (req, res) => {
     const review = await reviewService.createReview(req.body, req.user.id)
     res.status(201).json({ message: 'Reseña creada exitosamente', review })
   } catch (error) {
-    res.status(error.status || 400).json({ message: error.message })
+    res.status(error.status || 400).json({ message: safeMessage(error) })
   }
 }
 
@@ -16,7 +17,7 @@ const getByShopController = async (req, res) => {
     const result = await reviewService.getReviewsByShop(req.params.shopId, req.query)
     res.status(200).json(result)
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    res.status(500).json({ message: safeMessage(error) })
   }
 }
 
@@ -26,7 +27,7 @@ const getByBarberController = async (req, res) => {
     const result = await reviewService.getReviewsByBarber(req.params.barberId)
     res.status(200).json(result)
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    res.status(500).json({ message: safeMessage(error) })
   }
 }
 
@@ -36,7 +37,7 @@ const deleteController = async (req, res) => {
     const result = await reviewService.deleteReview(req.params.id)
     res.status(200).json(result)
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 

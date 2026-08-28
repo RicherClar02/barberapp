@@ -1,4 +1,5 @@
 const calendarService = require('../services/calendar.service')
+const { safeMessage } = require('../utils/safeError')
 
 const getBarberCalendarController = async (req, res) => {
   try {
@@ -10,7 +11,7 @@ const getBarberCalendarController = async (req, res) => {
     )
     res.status(200).json(calendar)
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -24,7 +25,7 @@ const getBarberDayController = async (req, res) => {
     )
     res.status(200).json(day)
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -37,7 +38,7 @@ const getShopDayController = async (req, res) => {
     )
     res.status(200).json(day)
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 

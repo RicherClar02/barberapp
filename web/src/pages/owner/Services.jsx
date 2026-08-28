@@ -13,7 +13,7 @@ export default function OwnerServices() {
   const qc = useQueryClient()
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ name: '', description: '', price: '', barbershopId: '' })
+  const [form, setForm] = useState({ name: '', description: '', price: '', duration: '', barbershopId: '' })
   const [errors, setErrors] = useState({})
 
   const { data: shopData } = useQuery({
@@ -21,6 +21,15 @@ export default function OwnerServices() {
     queryFn: () => api.get('/api/barbershops/my').then(r => r.data),
   })
   const shopId = shopData?.barbershops?.[0]?.id || shopData?.[0]?.id
+
+  // La duración por defecto de un servicio nuevo sale de la config de la
+  // barbería, que es la que ya usa la agenda para armar la grilla de turnos.
+  const { data: configData } = useQuery({
+    queryKey: ['config', shopId],
+    queryFn: () => api.get(`/api/config/${shopId}`).then(r => r.data),
+    enabled: !!shopId,
+  })
+  const defaultDuration = configData?.config?.appointmentDuration || 40
 
   const { data: servicesData, isLoading } = useQuery({
     queryKey: ['services', shopId],
@@ -31,13 +40,21 @@ export default function OwnerServices() {
 
   const openAdd = () => {
     setEditing(null)
-    setForm({ name: '', description: '', price: '', barbershopId: shopId })
+    setForm({ name: '', description: '', price: '', duration: String(defaultDuration), barbershopId: shopId })
     setErrors({})
     setModalOpen(true)
   }
   const openEdit = (s) => {
     setEditing(s)
-    setForm({ name: s.name, description: s.description || '', price: String(s.price), barbershopId: shopId })
+    setForm({
+      name: s.name,
+      description: s.description || '',
+      price: String(s.price),
+      // El servicio ya tiene duración guardada; si faltara, se cae al default
+      // de la barbería en vez de dejar el campo vacío.
+      duration: String(s.duration ?? defaultDuration),
+      barbershopId: shopId,
+    })
     setErrors({})
     setModalOpen(true)
   }
@@ -46,6 +63,13 @@ export default function OwnerServices() {
     const e = {}
     if (!form.name) e.name = 'Nombre requerido'
     if (!form.price || isNaN(form.price)) e.price = 'Precio inválido'
+    // duration es Int NOT NULL sin default en el modelo: sin este campo el
+    // create reventaba en Prisma. Tiene que ser un entero positivo, no un
+    // decimal: la grilla de turnos trabaja en minutos enteros.
+    const duration = Number(form.duration)
+    if (!form.duration || !Number.isInteger(duration) || duration <= 0) {
+      e.duration = 'Duración inválida: minutos enteros, mayor que cero'
+    }
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -74,7 +98,7 @@ export default function OwnerServices() {
 
   const handleSave = () => {
     if (!validate()) return
-    saveService({ ...form, price: parseFloat(form.price) })
+    saveService({ ...form, price: parseFloat(form.price), duration: Number(form.duration) })
   }
 
   return (
@@ -162,6 +186,9 @@ export default function OwnerServices() {
           </div>
           <Input label="Precio (COP)" type="number" placeholder="25000" value={form.price}
             onChange={e => setForm({ ...form, price: e.target.value })} error={errors.price} />
+          <Input label="Duración (minutos)" type="number" min="1" step="1" placeholder={String(defaultDuration)}
+            value={form.duration}
+            onChange={e => setForm({ ...form, duration: e.target.value })} error={errors.duration} />
         </div>
       </Modal>
     </div>

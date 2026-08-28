@@ -1,4 +1,5 @@
 const barberService = require('../services/barber.service')
+const { safeMessage } = require('../utils/safeError')
 
 // El dueño agrega un barbero a su barbería
 // Recibe userId del barbero y barbershopId en el body
@@ -7,7 +8,7 @@ const addBarberController = async (req, res) => {
     const barber = await barberService.addBarber(req.body, req.user.id)
     res.status(201).json({ message: 'Barbero agregado exitosamente', barber })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -18,7 +19,7 @@ const getByShopController = async (req, res) => {
     const barbers = await barberService.getBarbersByShop(req.params.shopId)
     res.status(200).json({ barbers })
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    res.status(500).json({ message: safeMessage(error) })
   }
 }
 
@@ -28,7 +29,7 @@ const getMyController = async (req, res) => {
     const barber = await barberService.getMyBarberProfile(req.user.id)
     res.status(200).json({ barber })
   } catch (error) {
-    res.status(404).json({ message: error.message })
+    res.status(404).json({ message: safeMessage(error) })
   }
 }
 
@@ -38,7 +39,7 @@ const getByIdController = async (req, res) => {
     const barber = await barberService.getBarberById(req.params.id)
     res.status(200).json({ barber })
   } catch (error) {
-    res.status(404).json({ message: error.message })
+    res.status(404).json({ message: safeMessage(error) })
   }
 }
 
@@ -48,7 +49,7 @@ const updateBarberController = async (req, res) => {
     const barber = await barberService.updateBarber(req.params.id, req.body, req.user.id)
     res.status(200).json({ message: 'Barbero actualizado', barber })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -59,7 +60,7 @@ const getCardByUserController = async (req, res) => {
     const card = await getBarberCardByUserId(req.params.userId, req.user || null)
     res.status(200).json(card)
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 

@@ -22,10 +22,18 @@ const createBarbershop = async (data, ownerId) => {
     if (data[field] !== undefined) createData[field] = data[field]
   }
 
+  // La configuración se crea junto con la barbería, con los defaults del modelo
+  // (60/40, fidelización cada 10 cortes, turnos de 40 min). Antes no se creaba
+  // nunca y ninguna pantalla llamaba a POST /api/config, así que toda barbería
+  // nacía sin config: GET devolvía 404 y PUT respondía "créala primero", o sea
+  // que las pestañas de Porcentajes y Fidelización no se podían ni leer ni
+  // guardar. El create anidado es atómico: Prisma lo envuelve en una
+  // transacción, así que no puede quedar una barbería sin su config.
   const barbershop = await prisma.barbershop.create({
     data: {
       ...createData,
-      ownerId
+      ownerId,
+      config: { create: {} }
     }
   })
   return barbershop

@@ -9,6 +9,12 @@ import ImageUploader from '../../components/ui/ImageUploader'
 import { formatCurrency } from '../../utils/formatters'
 
 const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+
+// El backend numera los días 0-6 con domingo=0 (schedule.service.js valida ese
+// rango, y es la convención de Date.getUTCDay() que usa getAvailability).
+// La lista de arriba se muestra empezando por lunes, así que el índice visual
+// no coincide con dayOfWeek: la posición 6 (Domingo) es el día 0.
+const DAY_OF_WEEK = [1, 2, 3, 4, 5, 6, 0]
 const PLANS = [
   { key: 'BASIC', label: 'Básico', price: 30000, features: ['2 barberos', '5 fotos', 'Sin ofertas'] },
   { key: 'STANDARD', label: 'Estándar', price: 60000, features: ['4 barberos', '20 fotos', '1 oferta activa'] },
@@ -112,12 +118,22 @@ export default function OwnerSettings() {
   })
 
   const [schedules, setSchedules] = useState(
-    DAYS.map((d, i) => ({ day: i + 1, dayName: d, isOpen: true, openTime: '08:00', closeTime: '18:00' }))
+    DAYS.map((d, i) => ({ dayOfWeek: DAY_OF_WEEK[i], dayName: d, isOpen: true, openTime: '08:00', closeTime: '18:00' }))
   )
+  // Una sola petición con la semana entera: el endpoint es setWeekSchedule y
+  // recorre el array del lado del servidor. Mandar siete en paralelo duplicaba
+  // filas (cada una hacía su propio findFirst antes de crear) y podía dejar la
+  // semana a medio guardar si una fallaba.
+  // dayName es solo para pintar la etiqueta y barbershopId ya viaja en la URL:
+  // ninguno de los dos llega al servicio, así que no se envían.
   const { mutate: saveSchedules, isPending: savingSchedules } = useMutation({
-    mutationFn: () => Promise.all(schedules.map(s => api.post(`/api/schedules/${shopId}`, { ...s, barbershopId: shopId }))),
+    mutationFn: () => api.post(`/api/schedules/${shopId}`, {
+      schedules: schedules.map(({ dayOfWeek, isOpen, openTime, closeTime }) => ({
+        dayOfWeek, isOpen, openTime, closeTime,
+      })),
+    }),
     onSuccess: () => toast.success('Horarios guardados'),
-    onError: () => toast.error('Error al guardar horarios'),
+    onError: (err) => toast.error(err.response?.data?.message || 'Error al guardar horarios'),
   })
 
   const [barberPct, setBarberPct] = useState(configData?.config?.barberPercentage || 60)
@@ -202,7 +218,7 @@ export default function OwnerSettings() {
           <h3 className="text-base font-semibold text-primary font-heading mb-4">Horarios de Atención</h3>
           <div className="space-y-3">
             {schedules.map((s, i) => (
-              <div key={s.day} className="flex items-center gap-4 py-3 border-b border-[rgba(74,44,10,0.06)] last:border-0">
+              <div key={s.dayOfWeek} className="flex items-center gap-4 py-3 border-b border-[rgba(74,44,10,0.06)] last:border-0">
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input type="checkbox" checked={s.isOpen}
                     onChange={e => setSchedules(prev => prev.map((x, j) => j === i ? { ...x, isOpen: e.target.checked } : x))}

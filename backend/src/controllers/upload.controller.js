@@ -1,4 +1,5 @@
 const prisma = require('../lib/prisma')
+const { safeMessage } = require('../utils/safeError')
 
 const uploadBarbershopLogoController = async (req, res) => {
   try {
@@ -11,7 +12,7 @@ const uploadBarbershopLogoController = async (req, res) => {
     await prisma.barbershop.update({ where: { id: req.params.shopId }, data: { logo: url } })
     res.status(200).json({ url, publicId })
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    res.status(500).json({ message: safeMessage(error) })
   }
 }
 
@@ -38,7 +39,7 @@ const uploadBarbershopPhotoController = async (req, res) => {
     })
     res.status(201).json({ url, publicId, photo })
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    res.status(500).json({ message: safeMessage(error) })
   }
 }
 
@@ -56,7 +57,7 @@ const deleteBarbershopPhotoController = async (req, res) => {
     await prisma.shopPhoto.delete({ where: { id: req.params.photoId } })
     res.status(200).json({ message: 'Foto eliminada' })
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    res.status(500).json({ message: safeMessage(error) })
   }
 }
 
@@ -77,7 +78,7 @@ const uploadBarberAvatarController = async (req, res) => {
     await prisma.user.update({ where: { id: barber.userId }, data: { avatar: url } })
     res.status(200).json({ url, publicId })
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    res.status(500).json({ message: safeMessage(error) })
   }
 }
 
@@ -95,7 +96,7 @@ const uploadServiceImageController = async (req, res) => {
     await prisma.service.update({ where: { id: req.params.serviceId }, data: { image: url } })
     res.status(200).json({ url, publicId })
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    res.status(500).json({ message: safeMessage(error) })
   }
 }
 
@@ -120,7 +121,7 @@ const uploadAdMediaController = async (req, res) => {
     })
     res.status(200).json({ url, publicId, mediaType: isVideo ? 'video' : 'image' })
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    res.status(500).json({ message: safeMessage(error) })
   }
 }
 

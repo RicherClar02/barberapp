@@ -1,4 +1,5 @@
 const earningsService = require('../services/earnings.service')
+const { safeMessage } = require('../utils/safeError')
 
 const getBarberEarningsController = async (req, res) => {
   try {
@@ -11,7 +12,7 @@ const getBarberEarningsController = async (req, res) => {
     )
     res.status(200).json({ earnings })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -25,7 +26,7 @@ const getShopEarningsController = async (req, res) => {
     )
     res.status(200).json({ earnings })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -37,7 +38,7 @@ const getBarberTodayController = async (req, res) => {
     )
     res.status(200).json(quick)
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 

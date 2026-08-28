@@ -1,4 +1,5 @@
 const loyaltyService = require('../services/loyalty.service')
+const { safeMessage } = require('../utils/safeError')
 
 // Cliente ve sus puntos de fidelidad en una barbería
 const getMyLoyaltyController = async (req, res) => {
@@ -6,7 +7,7 @@ const getMyLoyaltyController = async (req, res) => {
     const loyalty = await loyaltyService.getClientLoyalty(req.params.shopId, req.user.id)
     res.status(200).json({ loyalty })
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    res.status(500).json({ message: safeMessage(error) })
   }
 }
 
@@ -16,7 +17,7 @@ const getClientsRankingController = async (req, res) => {
     const clients = await loyaltyService.getShopClientsRanking(req.params.shopId, req.user.id)
     res.status(200).json({ clients })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -29,7 +30,7 @@ const redeemController = async (req, res) => {
     const loyalty = await loyaltyService.redeemFreeCut(barbershopId, req.user.id)
     res.status(200).json({ message: 'Corte gratis canjeado exitosamente', loyalty })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 

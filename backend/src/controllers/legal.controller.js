@@ -1,4 +1,5 @@
 const legalService = require('../services/legal.service')
+const { safeMessage } = require('../utils/safeError')
 
 const acceptTermsController = async (req, res) => {
   try {
@@ -24,7 +25,7 @@ const acceptTermsController = async (req, res) => {
       },
     })
   } catch (error) {
-    res.status(error.status || 400).json({ message: error.message })
+    res.status(error.status || 400).json({ message: safeMessage(error) })
   }
 }
 
@@ -38,7 +39,7 @@ const getDocumentController = async (req, res) => {
     const document = await legalService.getDocument(req.params.slug, lang)
     res.status(200).json(document)
   } catch (error) {
-    res.status(error.status || 404).json({ message: error.message })
+    res.status(error.status || 404).json({ message: safeMessage(error) })
   }
 }
 
@@ -47,7 +48,7 @@ const acceptanceStatusController = async (req, res) => {
     const status = await legalService.getAcceptanceStatus(req.user.id)
     res.status(200).json(status)
   } catch (error) {
-    res.status(error.status || 400).json({ message: error.message })
+    res.status(error.status || 400).json({ message: safeMessage(error) })
   }
 }
 

@@ -1,11 +1,12 @@
 const paymentService = require('../services/payment.service')
+const { safeMessage } = require('../utils/safeError')
 
 const cashPaymentController = async (req, res) => {
   try {
     const payment = await paymentService.registerCashPayment(req.params.appointmentId, req.user.id, req.user.role)
     res.status(201).json({ message: 'Pago en efectivo registrado', payment })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -14,7 +15,7 @@ const getByAppointmentController = async (req, res) => {
     const payment = await paymentService.getPaymentByAppointment(req.params.appointmentId, req.user.id, req.user.role)
     res.status(200).json({ payment })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -23,7 +24,7 @@ const getShopPaymentsController = async (req, res) => {
     const result = await paymentService.getShopPayments(req.params.shopId, req.query, req.user.id)
     res.status(200).json(result)
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -32,7 +33,7 @@ const getSummaryController = async (req, res) => {
     const summary = await paymentService.getFinancialSummary(req.params.shopId, req.user.id)
     res.status(200).json({ summary })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -41,7 +42,7 @@ const refundController = async (req, res) => {
     const payment = await paymentService.refundPayment(req.params.appointmentId, req.user.id, req.user.role)
     res.status(200).json({ message: 'Reembolso registrado', payment })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -54,7 +55,7 @@ const stripeCreateIntentController = async (req, res) => {
     const result = await paymentService.createStripeIntent(appointmentId, req.user.id)
     res.status(201).json(result)
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -85,7 +86,7 @@ const stripeRefundController = async (req, res) => {
     const result = await paymentService.createStripeRefund(appointmentId, reason || 'Sin motivo', req.user.id, req.user.role)
     res.status(200).json(result)
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -98,7 +99,7 @@ const epaycoCreateController = async (req, res) => {
     const result = await paymentService.createEpaycoPayment(appointmentId, method, req.user.id)
     res.status(201).json(result)
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -112,7 +113,7 @@ const epaycoConfirmController = async (req, res) => {
       logInvalidWebhook('epayco', req.ip, 'x_signature no coincide')
       return res.status(401).json({ message: 'Firma de webhook inválida' })
     }
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -121,7 +122,7 @@ const epaycoVerifyController = async (req, res) => {
     const result = await paymentService.verifyEpaycoTransaction(req.params.transactionId, req.user.id)
     res.status(200).json(result)
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 

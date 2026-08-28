@@ -1,5 +1,6 @@
 const authService = require('../services/auth.service')
 const { logHoneypot } = require('../utils/securityLog')
+const { safeMessage } = require('../utils/safeError')
 
 const registerController = async (req, res) => {
   try {
@@ -29,7 +30,7 @@ const registerController = async (req, res) => {
 
     res.status(201).json({ message: 'Usuario registrado exitosamente', ...result })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -49,7 +50,7 @@ const loginController = async (req, res) => {
 
     res.status(200).json({ message: 'Login exitoso', ...result })
   } catch (error) {
-    res.status(error.status || 401).json({ message: error.message })
+    res.status(error.status || 401).json({ message: safeMessage(error) })
   }
 }
 
@@ -58,7 +59,7 @@ const profileController = async (req, res) => {
     const user = await authService.getProfile(req.user.id)
     res.status(200).json({ user })
   } catch (error) {
-    res.status(404).json({ message: error.message })
+    res.status(404).json({ message: safeMessage(error) })
   }
 }
 
@@ -67,7 +68,7 @@ const updateProfileController = async (req, res) => {
     const user = await authService.updateProfile(req.user.id, req.body)
     res.status(200).json({ message: 'Perfil actualizado', user })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -79,7 +80,7 @@ const forgotPasswordController = async (req, res) => {
     const result = await authService.forgotPassword(email)
     res.status(200).json(result)
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    res.status(500).json({ message: safeMessage(error) })
   }
 }
 
@@ -91,7 +92,7 @@ const verifyResetCodeController = async (req, res) => {
     const result = await authService.verifyResetCode(email, code)
     res.status(200).json(result)
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -108,7 +109,7 @@ const resetPasswordController = async (req, res) => {
     const result = await authService.resetPassword(email, code, newPassword)
     res.status(200).json(result)
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -126,7 +127,7 @@ const changePasswordController = async (req, res) => {
   } catch (error) {
     // 401 si falló la contraseña actual, 400 si falló la nueva. El status
     // distingue los dos casos tanto como el mensaje.
-    res.status(error.status || 400).json({ message: error.message })
+    res.status(error.status || 400).json({ message: safeMessage(error) })
   }
 }
 
@@ -142,7 +143,7 @@ const findByEmailController = async (req, res) => {
     const result = await authService.findUserByEmail(email, req.user.id)
     res.status(200).json(result)
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 

@@ -1,11 +1,12 @@
 const subscriptionService = require('../services/subscription.service')
+const { safeMessage } = require('../utils/safeError')
 
 const createController = async (req, res) => {
   try {
     const sub = await subscriptionService.createSubscription(req.body, req.user.id)
     res.status(201).json({ message: 'Suscripción creada/renovada exitosamente', subscription: sub })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -14,7 +15,7 @@ const getMyController = async (req, res) => {
     const subscriptions = await subscriptionService.getMySubscriptions(req.user.id)
     res.status(200).json({ subscriptions })
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    res.status(500).json({ message: safeMessage(error) })
   }
 }
 
@@ -24,7 +25,7 @@ const getAllController = async (req, res) => {
     const subscriptions = await subscriptionService.getAllSubscriptions({ status, plan })
     res.status(200).json({ subscriptions })
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    res.status(500).json({ message: safeMessage(error) })
   }
 }
 
@@ -33,7 +34,7 @@ const cancelAutoRenewController = async (req, res) => {
     const sub = await subscriptionService.cancelAutoRenew(req.params.id, req.user.id)
     res.status(200).json({ message: 'Renovación automática cancelada', subscription: sub })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -42,7 +43,7 @@ const checkoutController = async (req, res) => {
     const result = await subscriptionService.createCheckout(req.body, req.user.id)
     res.status(201).json(result)
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 

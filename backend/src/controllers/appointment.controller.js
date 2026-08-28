@@ -1,4 +1,5 @@
 const appointmentService = require('../services/appointment.service')
+const { safeMessage } = require('../utils/safeError')
 
 // Retorna los slots disponibles para un barbero en una fecha
 // Query param: serviceId (obligatorio para calcular duración de slots)
@@ -14,7 +15,7 @@ const getAvailabilityController = async (req, res) => {
     const availability = await appointmentService.getAvailability(shopId, barberId, date, serviceId)
     res.status(200).json(availability)
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -24,7 +25,7 @@ const createController = async (req, res) => {
     const appointment = await appointmentService.createAppointment(req.body, req.user.id)
     res.status(201).json({ message: 'Cita creada exitosamente', appointment })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -34,7 +35,7 @@ const getMyController = async (req, res) => {
     const appointments = await appointmentService.getMyAppointments(req.user.id)
     res.status(200).json({ appointments })
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    res.status(500).json({ message: safeMessage(error) })
   }
 }
 
@@ -48,7 +49,7 @@ const getBarberController = async (req, res) => {
     )
     res.status(200).json({ appointments })
   } catch (error) {
-    res.status(403).json({ message: error.message })
+    res.status(403).json({ message: safeMessage(error) })
   }
 }
 
@@ -63,7 +64,7 @@ const getShopController = async (req, res) => {
     )
     res.status(200).json({ appointments })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -73,7 +74,7 @@ const confirmController = async (req, res) => {
     const appointment = await appointmentService.confirmAppointment(req.params.id, req.user.id, req.user.role)
     res.status(200).json({ message: 'Cita confirmada', appointment })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -84,7 +85,7 @@ const cancelController = async (req, res) => {
     const appointment = await appointmentService.cancelAppointment(req.params.id, req.user.id, req.user.role, cancelReason)
     res.status(200).json({ message: 'Cita cancelada', appointment })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -94,7 +95,7 @@ const completeController = async (req, res) => {
     const appointment = await appointmentService.completeAppointment(req.params.id, req.user.id, req.user.role)
     res.status(200).json({ message: 'Cita completada', appointment })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -104,7 +105,7 @@ const noShowController = async (req, res) => {
     const appointment = await appointmentService.noShowAppointment(req.params.id, req.user.id, req.user.role)
     res.status(200).json({ message: 'Cita marcada como no-show', appointment })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
@@ -119,7 +120,7 @@ const rescheduleController = async (req, res) => {
     )
     res.status(200).json({ message: 'Cita reprogramada', appointment })
   } catch (error) {
-    res.status(400).json({ message: error.message })
+    res.status(400).json({ message: safeMessage(error) })
   }
 }
 
