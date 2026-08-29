@@ -1,5 +1,6 @@
 const https = require('https')
 const prisma = require('../lib/prisma')
+const { isPastDateTime } = require('./shared/slots.service')
 
 // Motivos de fallo del asistente. Cada uno tiene un mensaje distinto para el
 // cliente: antes los cuatro casos (falta la key, sin créditos, rate limit,
@@ -365,6 +366,13 @@ const handleBookAppointment = async (userId, barbershopId, parsed, ctx) => {
   try {
     const service = ctx.services.find(s => s.name.toLowerCase().includes(parsed.serviceName?.toLowerCase()))
     if (!service) return { error: `No encontré el servicio "${parsed.serviceName}". Los servicios disponibles son: ${ctx.services.map(s => s.name).join(', ')}` }
+
+    // Este camino crea la cita directo, sin pasar por createAppointment: sin
+    // esta validación la IA podía reservar en el pasado si interpretaba mal
+    // una fecha ("el viernes" del viernes que ya fue).
+    if (isPastDateTime(parsed.date, parsed.time)) {
+      return { error: 'Esa fecha y hora ya pasaron. Decime un horario a futuro y te la reservo.' }
+    }
 
     const resolution = await resolveBarberForBooking(parsed, barbershopId, ctx)
     if (resolution.error) return { error: resolution.error }

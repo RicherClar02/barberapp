@@ -84,12 +84,23 @@ const filterPastSlots = (slots, date, now = new Date(), timeZone = SHOP_TIMEZONE
   return slots.filter(slot => slot.startTime > shopNow.time)
 }
 
+// ¿Ese día y esa hora ya pasaron? Es el complemento exacto del criterio de
+// filterPastSlots — un cupo que la disponibilidad ya no ofrece tampoco debe
+// poder crearse llamando al endpoint directo, sin pasar por la app.
+const isPastDateTime = (date, startTime, now = new Date(), timeZone = SHOP_TIMEZONE) => {
+  const shopNow = nowInShopTimezone(now, timeZone)
+  if (date < shopNow.date) return true
+  if (date > shopNow.date) return false
+  return startTime <= shopNow.time
+}
+
 module.exports = {
   generateSlots,
   overlaps,
   isSlotFree,
   filterAvailableSlots,
   filterPastSlots,
+  isPastDateTime,
   nowInShopTimezone,
   SHOP_TIMEZONE,
 }

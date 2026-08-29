@@ -187,3 +187,44 @@ test('filterPastSlots deja libre el borde exacto solo si todavía no llegó', ()
     ['18:40']
   )
 })
+
+// --- Crear una cita en el pasado ---
+// createAppointment validaba barbería, barbero, servicio, horario de apertura y
+// conflictos, pero nunca que la cita fuera a futuro: se podía reservar para
+// ayer llamando al endpoint directo, sin pasar por la app.
+const { isPastDateTime } = require('../src/services/shared/slots.service')
+
+test('isPastDateTime rechaza un día anterior y acepta uno posterior', () => {
+  assert.strictEqual(isPastDateTime('2026-08-27', '09:00', HOY_1830_BOGOTA), true)
+  assert.strictEqual(isPastDateTime('2026-08-29', '09:00', HOY_1830_BOGOTA), false)
+})
+
+test('isPastDateTime rechaza una hora de hoy que ya pasó y acepta una posterior', () => {
+  assert.strictEqual(isPastDateTime('2026-08-28', '08:00', HOY_1830_BOGOTA), true)
+  assert.strictEqual(isPastDateTime('2026-08-28', '18:30', HOY_1830_BOGOTA), true)
+  assert.strictEqual(isPastDateTime('2026-08-28', '18:40', HOY_1830_BOGOTA), false)
+})
+
+test('isPastDateTime compara contra Bogotá, no contra la UTC del servidor', () => {
+  // 01:30 UTC = 20:30 del día anterior en Bogotá: las 21:00 de ese día siguen
+  // siendo futuro, aunque en UTC ya sea el día siguiente.
+  const madrugadaUtc = new Date('2026-08-28T01:30:00Z')
+
+  assert.strictEqual(isPastDateTime('2026-08-27', '21:00', madrugadaUtc), false)
+  assert.strictEqual(isPastDateTime('2026-08-27', '20:00', madrugadaUtc), true)
+})
+
+test('isPastDateTime es el complemento exacto de filterPastSlots', () => {
+  const slots = generateSlots('08:00', '20:00', 40)
+  const ofrecidos = filterPastSlots(slots, '2026-08-28', HOY_1830_BOGOTA)
+
+  // Nada de lo que la disponibilidad ofrece puede ser rechazado al crearlo...
+  for (const s of ofrecidos) {
+    assert.strictEqual(isPastDateTime('2026-08-28', s.startTime, HOY_1830_BOGOTA), false)
+  }
+  // ...y nada de lo que descarta puede colarse por el endpoint directo.
+  const descartados = slots.filter(s => !ofrecidos.includes(s))
+  for (const s of descartados) {
+    assert.strictEqual(isPastDateTime('2026-08-28', s.startTime, HOY_1830_BOGOTA), true)
+  }
+})

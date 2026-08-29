@@ -2,7 +2,12 @@ const prisma = require('../lib/prisma')
 const { incrementLoyalty } = require('./loyalty.service')
 const { notifyNextInWaitlist } = require('./waitlist.service')
 const { sendPushNotification } = require('./notification.service')
-const { generateSlots, filterAvailableSlots, filterPastSlots } = require('./shared/slots.service')
+const {
+  generateSlots,
+  filterAvailableSlots,
+  filterPastSlots,
+  isPastDateTime,
+} = require('./shared/slots.service')
 
 // Formatea una fecha a texto legible en español (ej: "lunes 15 de junio")
 const formatDateEs = (date) => {
@@ -97,8 +102,18 @@ const createAppointment = async (data, clientId) => {
   const endTotal = startH * 60 + startM + service.duration
   const endTime = `${String(Math.floor(endTotal / 60)).padStart(2, '0')}:${String(endTotal % 60).padStart(2, '0')}`
 
-  // Verificar que el horario está dentro del horario de la barbería
+  // La cita tiene que ser a futuro. La disponibilidad ya no ofrece los cupos
+  // que pasaron, pero sin esta validación se podían crear igual llamando al
+  // endpoint directo: se aceptaba una cita para ayer. Misma comparación contra
+  // la hora de la barbería que usa filterPastSlots, para que la lista de cupos
+  // y lo que el backend acepta no puedan discrepar.
   const dateObj = new Date(date)
+  const dateKey = dateObj.toISOString().slice(0, 10)
+  if (isPastDateTime(dateKey, startTime)) {
+    throw new Error('No se puede reservar en una fecha u hora que ya pasó. Elegí un horario futuro.')
+  }
+
+  // Verificar que el horario está dentro del horario de la barbería
   const dayOfWeek = dateObj.getUTCDay()
 
   const schedule = await prisma.schedule.findFirst({
