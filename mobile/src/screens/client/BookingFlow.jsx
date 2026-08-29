@@ -4,11 +4,12 @@ import {
   TextInput, StatusBar, Alert, ActivityIndicator,
 } from 'react-native'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { format, addDays, isBefore, startOfDay, eachDayOfInterval } from 'date-fns'
+import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import api from '../../api/axios'
 import { colors, fontSize, spacing, radius, shadows } from '../../constants/theme'
 import { formatCurrency, formatDate, formatTime } from '../../utils/formatters'
+import { shopNow, dayKeysFrom } from '../../utils/shopTime'
 
 const STEPS = ['Barbero', 'Fecha', 'Hora', 'Confirmar']
 
@@ -17,6 +18,21 @@ function canAdvance(step, barber, date, slot) {
   if (step === 1) return !!date
   if (step === 2) return !!slot
   return true
+}
+
+// El validador responde { message: 'Datos inválidos', errors: [{ field, error }] }.
+// Mostrar solo `message` dejaba al usuario con "Datos inválidos" pelado y sin
+// forma de saber qué campo lo estaba rechazando: el detalle está en `errors`.
+function bookingErrorMessage(e) {
+  const data = e?.response?.data
+  const detalles = Array.isArray(data?.errors)
+    ? data.errors.map(x => x.error || x.msg).filter(Boolean)
+    : []
+
+  if (detalles.length) return `${data.message}: ${detalles.join('. ')}`
+  if (data?.message) return data.message
+  if (e?.message) return e.message
+  return 'No se pudo reservar la cita'
 }
 
 function SummaryRow({ label, value, bold }) {
@@ -40,8 +56,13 @@ export default function BookingFlow({ route, navigation }) {
   const [discount, setDiscount] = useState(null)
   const [success, setSuccess] = useState(false)
 
-  const today = startOfDay(new Date())
-  const days = eachDayOfInterval({ start: today, end: addDays(today, 30) })
+  // La fila arranca en el día de la BARBERÍA, no en el del teléfono. Antes se
+  // armaba con startOfDay(new Date()) del dispositivo: un teléfono en otra zona
+  // (o en UTC, como los emuladores) ofrecía un día distinto del que el backend
+  // considera hoy, y la reserva salía corrida. Se trabaja con claves
+  // "YYYY-MM-DD" de punta a punta para no volver a cruzar local y UTC.
+  const today = shopNow().date
+  const days = dayKeysFrom(today, 31)
 
   const { data: barbersData } = useQuery({
     queryKey: ['booking-barbers', shopId],
@@ -88,7 +109,10 @@ export default function BookingFlow({ route, navigation }) {
   const bookMutation = useMutation({
     mutationFn: () =>
       api.post('/api/appointments', {
-        shopId,
+        // El backend espera barbershopId. Se mandaba shopId, así que el campo
+        // llegaba vacío y el validador cortaba con 400 "Datos inválidos" antes
+        // de tocar la lógica de reserva: nunca se pudo confirmar una cita.
+        barbershopId: shopId,
         barberId: barber?.id || undefined,
         serviceId,
         date,
@@ -97,8 +121,7 @@ export default function BookingFlow({ route, navigation }) {
         promoCode: discount ? promoCode : undefined,
       }),
     onSuccess: () => setSuccess(true),
-    onError: e =>
-      Alert.alert('Error', e.response?.data?.message || 'No se pudo reservar la cita'),
+    onError: e => Alert.alert('No se pudo reservar', bookingErrorMessage(e)),
   })
 
   const basePrice = service?.price || 0
@@ -217,9 +240,12 @@ export default function BookingFlow({ route, navigation }) {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ gap: spacing.sm, paddingBottom: spacing.sm }}
             >
-              {days.map(day => {
-                const key = format(day, 'yyyy-MM-dd')
+              {days.map(key => {
                 const selected = date === key
+                // La clave es el día de calendario; se convierte a Date local
+                // solo para rotular, nunca para decidir qué fecha se envía.
+                const [y, m, d] = key.split('-').map(Number)
+                const label = new Date(y, m - 1, d)
                 return (
                   <TouchableOpacity
                     key={key}
@@ -227,13 +253,13 @@ export default function BookingFlow({ route, navigation }) {
                     style={[styles.dayChip, selected && styles.dayChipSelected]}
                   >
                     <Text style={[styles.dayChipDay, selected && { color: colors.cream }]}>
-                      {format(day, 'EEE', { locale: es })}
+                      {key === today ? 'hoy' : format(label, 'EEE', { locale: es })}
                     </Text>
                     <Text style={[styles.dayChipNum, selected && { color: colors.white }]}>
-                      {format(day, 'd')}
+                      {format(label, 'd')}
                     </Text>
                     <Text style={[styles.dayChipMon, selected && { color: colors.cream }]}>
-                      {format(day, 'MMM', { locale: es })}
+                      {format(label, 'MMM', { locale: es })}
                     </Text>
                   </TouchableOpacity>
                 )
@@ -282,7 +308,10 @@ export default function BookingFlow({ route, navigation }) {
             ) : slots.length === 0 ? (
               <View style={styles.noSlotsBox}>
                 <Text style={styles.noSlotsText}>
-                  {slotsData?.message || 'No hay horarios disponibles para este día'}
+                  {slotsData?.message ||
+                    (slotsData?.date && slotsData.date === slotsData.today
+                      ? 'Hoy ya no quedan turnos. Probá con otro día.'
+                      : 'No hay horarios disponibles para este día')}
                 </Text>
                 <TouchableOpacity onPress={() => setStep(1)} style={{ marginTop: spacing.sm }}>
                   <Text style={styles.linkText}>← Cambiar fecha</Text>

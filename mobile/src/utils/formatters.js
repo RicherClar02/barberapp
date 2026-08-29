@@ -7,14 +7,32 @@ export const formatCurrency = (amount) => {
   return `$${Number(amount).toLocaleString('es-CO')}`
 }
 
+// Un día de calendario ("2026-08-29") o un DateTime que representa un día y no
+// un instante: las citas se guardan con date = medianoche UTC, así que llegan
+// como "2026-08-29T00:00:00.000Z".
+const CALENDAR_DAY = /^(\d{4})-(\d{2})-(\d{2})(?:T00:00:00(?:\.000)?Z?)?$/
+
+// new Date("2026-08-29") se parsea como medianoche UTC, y date-fns lo formatea
+// en la hora del dispositivo: en toda América eso cae en el día anterior, así
+// que la pantalla mostraba "viernes 28" para una cita del sábado 29. Un día de
+// calendario no tiene zona horaria — se construye local para que el número que
+// se lee sea el mismo que viaja en la URL. Un timestamp real (createdAt) sí es
+// un instante y se sigue convirtiendo a la hora del dispositivo.
+const toDisplayDate = (value) => {
+  if (value instanceof Date) return value
+  const match = String(value).match(CALENDAR_DAY)
+  if (!match) return new Date(value)
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+}
+
 export const formatDate = (date) => {
   if (!date) return ''
-  return format(new Date(date), "EEEE d 'de' MMMM", { locale: es })
+  return format(toDisplayDate(date), "EEEE d 'de' MMMM", { locale: es })
 }
 
 export const formatDateShort = (date) => {
   if (!date) return ''
-  return format(new Date(date), 'd MMM yyyy', { locale: es })
+  return format(toDisplayDate(date), 'd MMM yyyy', { locale: es })
 }
 
 export const formatTime = (time) => {

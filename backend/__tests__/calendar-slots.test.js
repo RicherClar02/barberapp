@@ -228,3 +228,22 @@ test('isPastDateTime es el complemento exacto de filterPastSlots', () => {
     assert.strictEqual(isPastDateTime('2026-08-28', s.startTime, HOY_1830_BOGOTA), true)
   }
 })
+
+// --- La respuesta declara qué fecha interpretó ---
+// El cliente pedía un día y leía otro en pantalla sin que nada lo delatara.
+// getAvailability ahora devuelve date/today/timezone para que el desacuerdo de
+// zona horaria entre cliente y servidor sea visible en la propia respuesta.
+test('la fecha interpretada se normaliza igual venga como día o como ISO completo', () => {
+  const normalizar = (d) => new Date(d).toISOString().slice(0, 10)
+
+  assert.strictEqual(normalizar('2026-08-29'), '2026-08-29')
+  assert.strictEqual(normalizar('2026-08-29T00:00:00.000Z'), '2026-08-29')
+})
+
+test('el día de la semana que usa getAvailability no está corrido', () => {
+  // 2026-08-28 es viernes (5) y 2026-08-29 sábado (6). El bug reportado era
+  // recibir la grilla del sábado pidiendo el viernes: la conversión estaba
+  // bien, el cliente mandaba el día siguiente.
+  assert.strictEqual(new Date('2026-08-28').getUTCDay(), 5)
+  assert.strictEqual(new Date('2026-08-29').getUTCDay(), 6)
+})

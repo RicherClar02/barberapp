@@ -7,6 +7,8 @@ const {
   filterAvailableSlots,
   filterPastSlots,
   isPastDateTime,
+  nowInShopTimezone,
+  SHOP_TIMEZONE,
 } = require('./shared/slots.service')
 
 // Formatea una fecha a texto legible en español (ej: "lunes 15 de junio")
@@ -42,12 +44,24 @@ const getAvailability = async (barbershopId, barberId, date, serviceId) => {
   const dateObj = new Date(date)
   const dayOfWeek = dateObj.getUTCDay() // 0=Domingo, 6=Sábado
 
+  // Qué fecha entendió el backend, y qué día es hoy para la barbería. Van en la
+  // respuesta para que un desacuerdo de zona horaria entre cliente y servidor
+  // sea visible en vez de manifestarse como "me devolvió otro día".
+  const requestedDate = dateObj.toISOString().slice(0, 10)
+  const shopToday = nowInShopTimezone().date
+
   const schedule = await prisma.schedule.findFirst({
     where: { barbershopId, dayOfWeek }
   })
 
   if (!schedule || !schedule.isOpen) {
-    return { slots: [], message: 'La barbería no abre este día' }
+    return {
+      slots: [],
+      date: requestedDate,
+      today: shopToday,
+      timezone: SHOP_TIMEZONE,
+      message: 'La barbería no abre este día',
+    }
   }
 
   // Generar todos los slots posibles según la duración del servicio
@@ -72,9 +86,16 @@ const getAvailability = async (barbershopId, barberId, date, serviceId) => {
   // ya pasaron cuando la fecha pedida es hoy: la grilla se genera de apertura a
   // cierre sin mirar el reloj, así que a las 18:00 seguía ofreciendo las 08:00.
   const freeSlots = filterAvailableSlots(allSlots, existingAppointments)
-  const availableSlots = filterPastSlots(freeSlots, date)
+  const availableSlots = filterPastSlots(freeSlots, requestedDate)
 
-  return { slots: availableSlots, duration: service.duration, serviceName: service.name }
+  return {
+    slots: availableSlots,
+    duration: service.duration,
+    serviceName: service.name,
+    date: requestedDate,
+    today: shopToday,
+    timezone: SHOP_TIMEZONE,
+  }
 }
 
 // Crea una nueva cita

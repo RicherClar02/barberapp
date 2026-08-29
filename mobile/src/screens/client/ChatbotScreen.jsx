@@ -15,6 +15,20 @@ const QUICK_CHIPS = [
   { label: '🕐 Horarios', text: '¿Cuáles son los horarios de atención?' },
 ]
 
+// El prompt le pide al modelo que no use markdown, pero eso es una instrucción,
+// no una garantía: cada tanto se le escapa un **. Como la burbuja es texto
+// plano, se limpian los marcadores más comunes antes de mostrarlos, para que
+// nunca se lean literales. Es una red, no el arreglo: el arreglo es el prompt.
+function stripMarkdown(text) {
+  if (!text) return ''
+  return String(text)
+    .replace(/\*\*(.+?)\*\*/gs, '$1')      // **negrita**
+    .replace(/(?<!\w)\*(?!\s)(.+?)(?<!\s)\*(?!\w)/gs, '$1') // *cursiva*
+    .replace(/(?<!\w)_(?!\s)(.+?)(?<!\s)_(?!\w)/gs, '$1')   // _cursiva_
+    .replace(/`{1,3}([^`]+)`{1,3}/gs, '$1')  // `código`
+    .replace(/^#{1,6}\s+/gm, '')             // ## títulos
+}
+
 function ChatBubble({ message }) {
   const isUser = message.role === 'user'
   return (
@@ -26,7 +40,7 @@ function ChatBubble({ message }) {
       )}
       <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleBot]}>
         <Text style={[styles.bubbleText, isUser && styles.bubbleTextUser]}>
-          {message.content}
+          {isUser ? message.content : stripMarkdown(message.content)}
         </Text>
         <Text style={[styles.bubbleTime, isUser && { color: 'rgba(255,255,255,0.6)' }]}>
           {new Date(message.createdAt || Date.now()).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
@@ -49,9 +63,28 @@ export default function ChatbotScreen({ route, navigation }) {
     enabled: !!shopId,
   })
 
-  const allMessages = historyData?.messages?.length
-    ? [...historyData.messages, ...localMessages.filter(m => !historyData.messages.find(h => h.id === m.id))]
-    : localMessages
+  // Los mensajes locales son optimistas: se pintan al instante y después el
+  // historial los trae con el id que les puso la base. El filtro anterior
+  // deduplicaba por id, pero el mensaje del usuario se crea con `local-<ts>` y
+  // vuelve con un uuid, así que nunca coincidía y quedaba repetido al final de
+  // la conversación. Se descarta por (role, content), contando repeticiones
+  // para que escribir dos veces lo mismo siga mostrando los dos.
+  const historyMessages = historyData?.messages || []
+
+  const pendientes = []
+  const porConfirmar = new Map()
+  for (const m of historyMessages) {
+    const clave = `${m.role}|${m.content}`
+    porConfirmar.set(clave, (porConfirmar.get(clave) || 0) + 1)
+  }
+  for (const m of localMessages) {
+    const clave = `${m.role}|${m.content}`
+    const enHistorial = porConfirmar.get(clave) || 0
+    if (enHistorial > 0) porConfirmar.set(clave, enHistorial - 1)
+    else pendientes.push(m)
+  }
+
+  const allMessages = [...historyMessages, ...pendientes]
 
   useEffect(() => {
     if (allMessages.length > 0) {
