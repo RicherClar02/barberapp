@@ -2,7 +2,7 @@ const prisma = require('../lib/prisma')
 const { incrementLoyalty } = require('./loyalty.service')
 const { notifyNextInWaitlist } = require('./waitlist.service')
 const { sendPushNotification } = require('./notification.service')
-const { generateSlots, filterAvailableSlots } = require('./shared/slots.service')
+const { generateSlots, filterAvailableSlots, filterPastSlots } = require('./shared/slots.service')
 
 // Formatea una fecha a texto legible en español (ej: "lunes 15 de junio")
 const formatDateEs = (date) => {
@@ -63,8 +63,11 @@ const getAvailability = async (barbershopId, barberId, date, serviceId) => {
     select: { startTime: true, endTime: true }
   })
 
-  // Filtrar slots que no se solapen con citas existentes
-  const availableSlots = filterAvailableSlots(allSlots, existingAppointments)
+  // Filtrar slots que no se solapen con citas existentes, y descartar los que
+  // ya pasaron cuando la fecha pedida es hoy: la grilla se genera de apertura a
+  // cierre sin mirar el reloj, así que a las 18:00 seguía ofreciendo las 08:00.
+  const freeSlots = filterAvailableSlots(allSlots, existingAppointments)
+  const availableSlots = filterPastSlots(freeSlots, date)
 
   return { slots: availableSlots, duration: service.duration, serviceName: service.name }
 }

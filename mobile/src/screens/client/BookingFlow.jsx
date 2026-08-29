@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, StatusBar, Alert,
+  TextInput, StatusBar, Alert, ActivityIndicator,
 } from 'react-native'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { format, addDays, isBefore, startOfDay, eachDayOfInterval } from 'date-fns'
@@ -52,7 +52,14 @@ export default function BookingFlow({ route, navigation }) {
   // serviceId es obligatorio: el backend calcula la duración del slot a partir
   // del servicio y responde 400 sin él. El barbero también: no hay barbero
   // "cualquiera" en el backend, así que no se consulta hasta tener uno elegido.
-  const { data: slotsData } = useQuery({
+  const slotsEnabled = !!shopId && !!barber?.id && !!date && !!serviceId
+  const {
+    data: slotsData,
+    isLoading: loadingSlots,
+    isError: slotsFailed,
+    error: slotsError,
+    refetch: refetchSlots,
+  } = useQuery({
     queryKey: ['booking-slots', shopId, barber?.id, date, serviceId],
     queryFn: () =>
       api
@@ -60,11 +67,16 @@ export default function BookingFlow({ route, navigation }) {
           params: { serviceId },
         })
         .then(r => r.data),
-    enabled: !!shopId && !!barber?.id && !!date && !!serviceId,
+    enabled: slotsEnabled,
   })
 
   const barbers = barbersData?.barbers || barbersData || []
-  const slots = slotsData?.slots || slotsData || []
+  // El backend responde { slots: [{ startTime, endTime }], duration, serviceName }
+  // y ya excluye los ocupados y los que pasaron: lo que llega acá es reservable.
+  const slots = slotsData?.slots || []
+  // La duración sale del servicio real, no de un "40 min" escrito en duro que
+  // mentía en cuanto una barbería configuraba un servicio de otra duración.
+  const slotDuration = slotsData?.duration ?? service?.duration ?? null
 
   const applyPromo = useMutation({
     mutationFn: () =>
@@ -155,7 +167,9 @@ export default function BookingFlow({ route, navigation }) {
         {/* Service banner */}
         <View style={styles.serviceBanner}>
           <Text style={styles.serviceBannerName}>{service?.name}</Text>
-          <Text style={styles.serviceBannerInfo}>{formatCurrency(service?.price)} · 40 min</Text>
+          <Text style={styles.serviceBannerInfo}>
+            {formatCurrency(service?.price)}{slotDuration ? ` · ${slotDuration} min` : ''}
+          </Text>
         </View>
 
         {/* STEP 0 — Barbero */}
@@ -233,32 +247,63 @@ export default function BookingFlow({ route, navigation }) {
           <View>
             <Text style={styles.stepTitle}>¿A qué hora?</Text>
             {date && <Text style={styles.stepSubtitle}>{formatDate(date)}</Text>}
-            {slots.length === 0 ? (
+
+            {/* Cada situación dice lo que realmente pasó. Antes las cuatro
+                caían en "No hay horarios disponibles", que era falso en tres. */}
+            {!serviceId ? (
               <View style={styles.noSlotsBox}>
-                <Text style={styles.noSlotsText}>No hay horarios disponibles para este día</Text>
+                <Text style={styles.errorTitle}>Falta elegir el servicio</Text>
+                <Text style={styles.noSlotsText}>
+                  No podemos calcular los horarios sin saber qué servicio querés.
+                  Volvé a la barbería y elegí uno.
+                </Text>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: spacing.sm }}>
+                  <Text style={styles.linkText}>← Elegir servicio</Text>
+                </TouchableOpacity>
+              </View>
+            ) : loadingSlots ? (
+              <View style={styles.noSlotsBox}>
+                <ActivityIndicator color={colors.accent} size="large" />
+                <Text style={[styles.noSlotsText, { marginTop: spacing.sm }]}>
+                  Buscando horarios disponibles...
+                </Text>
+              </View>
+            ) : slotsFailed ? (
+              <View style={styles.noSlotsBox}>
+                <Text style={styles.errorTitle}>No pudimos cargar los horarios</Text>
+                <Text style={styles.noSlotsText}>
+                  {slotsError?.response?.data?.message ||
+                    'Revisá tu conexión e intentá de nuevo.'}
+                </Text>
+                <TouchableOpacity onPress={() => refetchSlots()} style={{ marginTop: spacing.sm }}>
+                  <Text style={styles.linkText}>Reintentar</Text>
+                </TouchableOpacity>
+              </View>
+            ) : slots.length === 0 ? (
+              <View style={styles.noSlotsBox}>
+                <Text style={styles.noSlotsText}>
+                  {slotsData?.message || 'No hay horarios disponibles para este día'}
+                </Text>
                 <TouchableOpacity onPress={() => setStep(1)} style={{ marginTop: spacing.sm }}>
-                  <Text style={{ color: colors.accent, fontWeight: '600' }}>← Cambiar fecha</Text>
+                  <Text style={styles.linkText}>← Cambiar fecha</Text>
                 </TouchableOpacity>
               </View>
             ) : (
               <View style={styles.slotsGrid}>
                 {slots.map(s => (
                   <TouchableOpacity
-                    key={s.time}
-                    disabled={!s.available}
-                    onPress={() => setSlot(s.time)}
+                    key={s.startTime}
+                    onPress={() => setSlot(s.startTime)}
                     style={[
                       styles.slotChip,
-                      slot === s.time && styles.slotChipSelected,
-                      !s.available && styles.slotChipDisabled,
+                      slot === s.startTime && styles.slotChipSelected,
                     ]}
                   >
                     <Text style={[
                       styles.slotText,
-                      slot === s.time && { color: colors.white },
-                      !s.available && { color: colors.graySoft },
+                      slot === s.startTime && { color: colors.white },
                     ]}>
-                      {formatTime(s.time)}
+                      {formatTime(s.startTime)}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -278,7 +323,7 @@ export default function BookingFlow({ route, navigation }) {
               <SummaryRow label="Servicio" value={service?.name} />
               <SummaryRow label="Fecha" value={date ? formatDate(date) : ''} />
               <SummaryRow label="Hora" value={slot ? formatTime(slot) : ''} />
-              <SummaryRow label="Duración" value="40 minutos" />
+              <SummaryRow label="Duración" value={slotDuration ? `${slotDuration} minutos` : '—'} />
               <View style={styles.confirmDivider} />
               {discount && (
                 <SummaryRow
@@ -413,6 +458,11 @@ const styles = StyleSheet.create({
     padding: spacing.xl, alignItems: 'center', ...shadows.shadowLight,
   },
   noSlotsText: { color: colors.secondary, fontSize: fontSize.sm, textAlign: 'center' },
+  errorTitle: {
+    color: colors.error, fontSize: fontSize.md, fontWeight: '700',
+    textAlign: 'center', marginBottom: spacing.xs,
+  },
+  linkText: { color: colors.accent, fontWeight: '600' },
   slotsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   slotChip: {
     width: '30%', padding: spacing.sm, alignItems: 'center',

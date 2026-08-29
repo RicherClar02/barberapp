@@ -195,7 +195,10 @@ app.get('/health', async (req, res) => {
       epayco: process.env.EPAYCO_API_KEY ? 'configured' : 'not configured',
       twilio: process.env.TWILIO_ACCOUNT_SID ? 'configured' : 'not configured',
       firebase: process.env.FIREBASE_PROJECT_ID ? 'configured' : 'not configured',
-      cloudinary: process.env.CLOUDINARY_CLOUD_NAME ? 'configured' : 'not configured'
+      cloudinary: process.env.CLOUDINARY_CLOUD_NAME ? 'configured' : 'not configured',
+      // El chatbot faltaba en este listado: era imposible confirmar desde
+      // afuera si la key estaba puesta en el hosting sin entrar al dashboard.
+      anthropic: process.env.ANTHROPIC_API_KEY ? 'configured' : 'not configured'
     }
   })
 })

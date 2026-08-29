@@ -50,4 +50,46 @@ const filterAvailableSlots = (slots, appointments) => {
   return slots.filter(slot => isSlotFree(slot, appointments))
 }
 
-module.exports = { generateSlots, overlaps, isSlotFree, filterAvailableSlots }
+// Zona horaria de las barberías. Los openTime/closeTime del schedule son hora
+// local de Colombia, pero el servidor corre en UTC: comparar contra la hora
+// del proceso adelantaría 5 horas y escondería slots que todavía son válidos.
+const SHOP_TIMEZONE = process.env.SHOP_TIMEZONE || 'America/Bogota'
+
+// "YYYY-MM-DD" y "HH:MM" de un instante, ya en la zona de la barbería.
+const nowInShopTimezone = (now = new Date(), timeZone = SHOP_TIMEZONE) => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(now)
+
+  const get = type => parts.find(p => p.type === type).value
+  // hourCycle h23 puede devolver "24" a medianoche en algunos runtimes.
+  const hour = get('hour') === '24' ? '00' : get('hour')
+
+  return {
+    date: `${get('year')}-${get('month')}-${get('day')}`,
+    time: `${hour}:${get('minute')}`,
+  }
+}
+
+// Descarta los slots cuya hora de inicio ya pasó, pero SOLO si la fecha pedida
+// es hoy: para días futuros la grilla entera es válida, y para días pasados no
+// queda ninguna. Antes no se filtraba nada, así que pedir la disponibilidad de
+// hoy a las 18:00 devolvía igual los cupos de las 08:00.
+const filterPastSlots = (slots, date, now = new Date(), timeZone = SHOP_TIMEZONE) => {
+  const shopNow = nowInShopTimezone(now, timeZone)
+  if (date > shopNow.date) return slots
+  if (date < shopNow.date) return []
+  return slots.filter(slot => slot.startTime > shopNow.time)
+}
+
+module.exports = {
+  generateSlots,
+  overlaps,
+  isSlotFree,
+  filterAvailableSlots,
+  filterPastSlots,
+  nowInShopTimezone,
+  SHOP_TIMEZONE,
+}

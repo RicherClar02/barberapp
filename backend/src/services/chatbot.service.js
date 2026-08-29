@@ -1,8 +1,63 @@
+const https = require('https')
 const prisma = require('../lib/prisma')
+
+// Motivos de fallo del asistente. Cada uno tiene un mensaje distinto para el
+// cliente: antes los cuatro casos (falta la key, sin créditos, rate limit,
+// error inesperado) devolvían la misma disculpa genérica y no dejaban rastro
+// en los logs, así que era imposible saber cuál de todos estaba pasando.
+const AI_FAILURE = {
+  CONFIG: 'config',
+  RATE_LIMIT: 'rate_limit',
+  GENERIC: 'generic',
+}
+
+const AI_FAILURE_REPLY = {
+  [AI_FAILURE.CONFIG]:
+    'El asistente no está disponible en este momento. Podés reservar tu cita ' +
+    'directamente desde la barbería: elegí el servicio y te mostramos los ' +
+    'horarios libres.',
+  [AI_FAILURE.RATE_LIMIT]:
+    'El asistente está recibiendo muchas consultas ahora mismo. Esperá un ' +
+    'minuto y volvé a intentar.',
+  [AI_FAILURE.GENERIC]:
+    'Lo siento, no pude procesar tu mensaje. Por favor intenta de nuevo.',
+}
+
+// Un error se clasifica como CONFIG cuando la causa está del lado de nuestra
+// cuenta y el cliente no puede resolverla reintentando: falta la API key,
+// es inválida, o se acabaron los créditos. En esos casos lo honesto es
+// mandarlo al flujo manual de reserva en vez de invitarlo a reintentar.
+const classifyAiError = (err) => {
+  if (!process.env.ANTHROPIC_API_KEY) return AI_FAILURE.CONFIG
+
+  const status = err?.status
+  const text = String(err?.message || '').toLowerCase()
+
+  if (status === 429 || text.includes('rate limit')) return AI_FAILURE.RATE_LIMIT
+  if (
+    status === 401 ||
+    status === 403 ||
+    text.includes('credit balance') ||
+    text.includes('insufficient') ||
+    text.includes('quota') ||
+    text.includes('billing') ||
+    text.includes('authentication') ||
+    text.includes('invalid x-api-key')
+  ) {
+    return AI_FAILURE.CONFIG
+  }
+  return AI_FAILURE.GENERIC
+}
 
 // Llama a la API de Anthropic via HTTPS nativo (sin SDK extra)
 const callAnthropic = (messages, systemPrompt) => {
   return new Promise((resolve, reject) => {
+    // Sin key no tiene sentido salir a la red: Anthropic devolvería 401 y el
+    // motivo real (falta configurar el servicio) quedaría disfrazado.
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return reject(new Error('ANTHROPIC_API_KEY no está configurada'))
+    }
+
     const body = JSON.stringify({
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
@@ -28,9 +83,21 @@ const callAnthropic = (messages, systemPrompt) => {
       res.on('end', () => {
         try {
           const parsed = JSON.parse(data)
-          if (parsed.error) return reject(new Error(parsed.error.message))
+          // El status HTTP viaja con el error: es lo que distingue un 429
+          // (reintentable) de un 401 o un saldo agotado (no reintentable).
+          if (parsed.error) {
+            const err = new Error(parsed.error.message)
+            err.status = res.statusCode
+            return reject(err)
+          }
+          if (res.statusCode < 200 || res.statusCode >= 300) {
+            const err = new Error(`Anthropic respondió ${res.statusCode}`)
+            err.status = res.statusCode
+            return reject(err)
+          }
           resolve(parsed.content?.[0]?.text || '')
         } catch (e) {
+          e.status = e.status || res.statusCode
           reject(e)
         }
       })
@@ -202,8 +269,17 @@ const processMessage = async (userId, barbershopId, text) => {
     const jsonMatch = rawResponse.match(/\{[\s\S]*\}/)
     if (jsonMatch) parsed = { ...parsed, ...JSON.parse(jsonMatch[0]) }
     else parsed.reply = rawResponse
-  } catch {
-    parsed.reply = 'Lo siento, no pude procesar tu mensaje. Por favor intenta de nuevo.'
+  } catch (err) {
+    // Nunca tragar el error en silencio: sin esta línea un ReferenceError, una
+    // key inválida, un rate limit y los créditos agotados eran indistinguibles
+    // tanto para el cliente como en los logs.
+    const failure = classifyAiError(err)
+    console.error(
+      `[chatbot] fallo al llamar a la IA (motivo=${failure}, status=${err?.status ?? 'n/a'}, barbershopId=${barbershopId}):`,
+      err
+    )
+    parsed.reply = AI_FAILURE_REPLY[failure]
+    parsed.intent = 'faq'
   }
 
   // Ejecutar acción según intent
@@ -326,4 +402,13 @@ const getHistory = async (userId, barbershopId, limit = 50) => {
   })
 }
 
-module.exports = { processMessage, getHistory, resolveBarberByName, resolveBarberForBooking, loadShopContext }
+module.exports = {
+  processMessage,
+  getHistory,
+  resolveBarberByName,
+  resolveBarberForBooking,
+  loadShopContext,
+  classifyAiError,
+  AI_FAILURE,
+  AI_FAILURE_REPLY,
+}

@@ -133,3 +133,57 @@ test('calendar.service.js devuelve arrays de strings (shape que consume el front
     assert.match(slot, /^\d{2}:\d{2}$/)
   }
 })
+
+// --- Cupos que ya pasaron (disponibilidad de HOY) ---
+// getAvailability generaba la grilla de apertura a cierre sin mirar el reloj,
+// así que a las 18:00 seguía ofreciendo los cupos de las 08:00 del mismo día.
+const { filterPastSlots, nowInShopTimezone } = require('../src/services/shared/slots.service')
+
+// 2026-08-28 18:30 en Bogotá (UTC-5) == 23:30 UTC del mismo día.
+const HOY_1830_BOGOTA = new Date('2026-08-28T23:30:00Z')
+
+test('filterPastSlots descarta los cupos de hoy cuya hora ya pasó', () => {
+  const slots = generateSlots('08:00', '20:00', 40)
+
+  const quedan = filterPastSlots(slots, '2026-08-28', HOY_1830_BOGOTA)
+
+  assert.ok(quedan.every(s => s.startTime > '18:30'), 'no debe quedar ningún cupo pasado')
+  assert.deepStrictEqual(quedan.map(s => s.startTime), ['18:40', '19:20'])
+})
+
+test('filterPastSlots no toca la grilla de un día futuro', () => {
+  const slots = generateSlots('08:00', '12:00', 40)
+
+  const quedan = filterPastSlots(slots, '2026-08-29', HOY_1830_BOGOTA)
+
+  assert.deepStrictEqual(quedan, slots)
+})
+
+test('filterPastSlots vacía la grilla de un día ya pasado', () => {
+  const slots = generateSlots('08:00', '12:00', 40)
+
+  assert.deepStrictEqual(filterPastSlots(slots, '2026-08-27', HOY_1830_BOGOTA), [])
+})
+
+test('filterPastSlots usa la hora de Bogotá, no la UTC del servidor', () => {
+  // 2026-08-28 01:30 UTC son todavía las 20:30 del 27 en Bogotá: si se
+  // comparara contra UTC, el día 27 se tomaría por pasado y devolvería [].
+  const madrugadaUtc = new Date('2026-08-28T01:30:00Z')
+  const slots = generateSlots('08:00', '23:00', 60)
+
+  assert.deepStrictEqual(nowInShopTimezone(madrugadaUtc).date, '2026-08-27')
+  assert.deepStrictEqual(
+    filterPastSlots(slots, '2026-08-27', madrugadaUtc).map(s => s.startTime),
+    ['21:00', '22:00']
+  )
+})
+
+test('filterPastSlots deja libre el borde exacto solo si todavía no llegó', () => {
+  const slots = [{ startTime: '18:30', endTime: '19:10' }, { startTime: '18:40', endTime: '19:20' }]
+
+  // 18:30 ya arrancó, 18:40 no
+  assert.deepStrictEqual(
+    filterPastSlots(slots, '2026-08-28', HOY_1830_BOGOTA).map(s => s.startTime),
+    ['18:40']
+  )
+})
