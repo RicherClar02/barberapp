@@ -133,7 +133,7 @@ export default function BarberEarnings() {
                   <tr key={i} className="border-b border-gray-soft/50 hover:bg-cream">
                     <td className="py-2.5 px-3 text-xs text-secondary">
                       <p>{formatDate(item.date)}</p>
-                      {item.time && <p>{formatTime(item.time)}</p>}
+                      {item.startTime && <p>{formatTime(item.startTime)}</p>}
                     </td>
                     <td className="py-2.5 px-3 font-medium">{item.clientName || '—'}</td>
                     <td className="py-2.5 px-3">{item.serviceName || '—'}</td>

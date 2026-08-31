@@ -6,7 +6,7 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Input from '../../components/ui/Input'
 import ImageUploader from '../../components/ui/ImageUploader'
-import { formatCurrency } from '../../utils/formatters'
+import { formatCurrency, toDisplayDate } from '../../utils/formatters'
 
 const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 
@@ -394,7 +394,7 @@ export default function OwnerSettings() {
                 <div>
                   <p className="text-sm text-muted">Plan activo</p>
                   <h3 className="text-2xl font-bold text-primary font-heading">{sub.plan}</h3>
-                  <p className="text-sm text-muted mt-0.5">Vence el {new Date(sub.endDate).toLocaleDateString('es-CO')}</p>
+                  <p className="text-sm text-muted mt-0.5">Vence el {toDisplayDate(sub.endDate).toLocaleDateString('es-CO')}</p>
                 </div>
                 <span className={`px-3 py-1.5 rounded-full text-sm font-semibold ${sub.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                   {sub.status === 'ACTIVE' ? 'Activo' : 'Vencido'}

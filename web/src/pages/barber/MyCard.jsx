@@ -135,7 +135,7 @@ export default function BarberMyCard() {
             </div>
             <div>
               <p className="text-sm font-medium">
-                {upcomingAppts[0] ? `${formatTime(upcomingAppts[0].time || upcomingAppts[0].slot)}` : '—'}
+                {upcomingAppts[0] ? `${formatTime(upcomingAppts[0].startTime)}` : '—'}
               </p>
               <p className="text-cream/60 text-xs">próxima</p>
             </div>
@@ -149,7 +149,7 @@ export default function BarberMyCard() {
             <div className="space-y-1.5">
               {upcomingAppts.slice(0, 3).map((a, i) => (
                 <div key={i} className="flex items-center justify-between bg-white/10 rounded-lg px-3 py-1.5">
-                  <span className="text-sm font-medium">{formatTime(a.time || a.slot)}</span>
+                  <span className="text-sm font-medium">{formatTime(a.startTime)}</span>
                   <span className="text-sm text-cream/80 truncate mx-2">{a.client?.name?.split(' ')[0]} {a.client?.name?.split(' ')[1]?.[0]}.</span>
                   <span className="text-xs text-cream/60">{a.service?.name}</span>
                 </div>

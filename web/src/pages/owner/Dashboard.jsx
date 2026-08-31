@@ -225,7 +225,7 @@ export default function OwnerDashboard() {
                 <tbody>
                   {appointments.slice(0, 8).map((row, i) => (
                     <tr key={row.id || i} className={`border-b border-[rgba(74,44,10,0.06)] hover:bg-cream/50 transition-colors ${i % 2 === 1 ? 'bg-cream/30' : ''}`}>
-                      <td className="py-3 px-4 font-semibold text-primary">{formatTime(row.time || row.slot)}</td>
+                      <td className="py-3 px-4 font-semibold text-primary">{formatTime(row.startTime)}</td>
                       <td className="py-3 px-4">{row.client?.name || '—'}</td>
                       <td className="py-3 px-4 text-muted">{row.barber?.user?.name || '—'}</td>
                       <td className="py-3 px-4 text-muted">{row.service?.name || '—'}</td>

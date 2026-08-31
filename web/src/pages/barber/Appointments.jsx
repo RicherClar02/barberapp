@@ -130,7 +130,7 @@ export default function BarberAppointments() {
                       </td>
                       <td className="py-2.5 px-3 text-xs text-secondary">
                         <p>{formatDate(a.date || a.createdAt)}</p>
-                        {a.time && <p className="font-medium text-black-soft">{formatTime(a.time)}</p>}
+                        {a.startTime && <p className="font-medium text-black-soft">{formatTime(a.startTime)}</p>}
                       </td>
                       <td className="py-2.5 px-3">{a.service?.name || '—'}</td>
                       <td className="py-2.5 px-3 text-secondary">{formatCurrency(a.service?.price || 0)}</td>
@@ -178,6 +178,15 @@ export default function BarberAppointments() {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="bg-cream rounded-lg p-2"><p className="text-xs text-secondary">Fecha</p><p className="font-semibold">{formatDate(detail.date || detail.createdAt)}</p></div>
+              <div className="bg-cream rounded-lg p-2">
+                <p className="text-xs text-secondary">Hora</p>
+                <p className="font-semibold">
+                  {detail.startTime
+                    ? `${formatTime(detail.startTime)}${detail.endTime ? ` → ${formatTime(detail.endTime)}` : ''}`
+                    : '—'}
+                </p>
+              </div>
               <div className="bg-cream rounded-lg p-2"><p className="text-xs text-secondary">Servicio</p><p className="font-semibold">{detail.service?.name}</p></div>
               <div className="bg-cream rounded-lg p-2"><p className="text-xs text-secondary">Precio</p><p className="font-semibold text-accent">{formatCurrency(detail.service?.price || 0)}</p></div>
               <div className="bg-cream rounded-lg p-2"><p className="text-xs text-secondary">Mi ganancia</p><p className="font-semibold text-green-600">{formatCurrency((detail.service?.price || 0) * barberPct / 100)}</p></div>

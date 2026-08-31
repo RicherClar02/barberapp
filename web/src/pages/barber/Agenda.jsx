@@ -78,7 +78,7 @@ export default function BarberAgenda() {
 
   const getApptAtHour = (hour) =>
     appointments.filter(a => {
-      const h = parseInt((a.time || a.slot || '00:00').split(':')[0])
+      const h = parseInt((a.startTime || '00:00').split(':')[0])
       return h === hour
     })
 
@@ -95,7 +95,7 @@ export default function BarberAgenda() {
         <MiniCard icon="✂️" title="Cortes hoy"
           value={`${todayStats.completed || 0} / ${appointments.length}`} />
         <MiniCard icon="⏰" title="Próxima cita"
-          value={nextAppt ? `${formatTime(nextAppt.time || nextAppt.slot)} · ${nextAppt.client?.name?.split(' ')[0]}` : 'Sin citas'} />
+          value={nextAppt ? `${formatTime(nextAppt.startTime)} · ${nextAppt.client?.name?.split(' ')[0]}` : 'Sin citas'} />
         <MiniCard icon="💰" title="Ganado hoy"
           value={formatCurrency(todayStats.earnings || 0)} accent />
         <MiniCard icon="⭐" title="Mi rating"
@@ -173,13 +173,7 @@ export default function BarberAgenda() {
                                 <div className="text-right flex items-center gap-2">
                                   <div>
                                     <p className="text-xs font-medium text-primary">
-                                      {formatTime(a.time || a.slot)} → {formatTime(
-                                        (() => {
-                                          const [h, m] = (a.time || a.slot || '00:00').split(':')
-                                          const end = new Date(0, 0, 0, parseInt(h), parseInt(m) + 40)
-                                          return `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`
-                                        })()
-                                      )}
+                                      {formatTime(a.startTime)} → {formatTime(a.endTime)}
                                     </p>
                                     <p className="text-xs font-bold text-accent">{formatCurrency(a.service?.price || 0)}</p>
                                   </div>
@@ -273,7 +267,11 @@ export default function BarberAgenda() {
               </div>
               <div className="bg-cream rounded-lg p-3">
                 <p className="text-secondary text-xs">Hora</p>
-                <p className="font-semibold">{formatTime(selectedAppt.time || selectedAppt.slot)}</p>
+                <p className="font-semibold">
+                  {selectedAppt.startTime
+                    ? `${formatTime(selectedAppt.startTime)}${selectedAppt.endTime ? ` → ${formatTime(selectedAppt.endTime)}` : ''}`
+                    : '—'}
+                </p>
               </div>
             </div>
 

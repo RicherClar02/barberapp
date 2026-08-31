@@ -6,9 +6,28 @@ export const formatCurrency = (amount) => {
   return `$ ${Number(amount).toLocaleString('es-CO')} COP`
 }
 
+// Un día de calendario ("2026-09-01") o un DateTime que representa un día y no
+// un instante: las citas se guardan con date = medianoche UTC, así que llegan
+// como "2026-09-01T00:00:00.000Z".
+const CALENDAR_DAY = /^(\d{4})-(\d{2})-(\d{2})(?:T00:00:00(?:\.000)?Z?)?$/
+
+// new Date("2026-09-01") se parsea como medianoche UTC, y date-fns lo formatea
+// en la hora del navegador: en Bogotá (UTC-5) eso cae en el día anterior, así
+// que el panel mostraba "31 de agosto" para una cita del 1 de septiembre. Un
+// día de calendario no tiene zona horaria — se construye local para que el
+// número que se lee sea el mismo que viaja en la URL. Un timestamp real
+// (createdAt) sí es un instante y se sigue convirtiendo a la hora local.
+// Mismo criterio que mobile/src/utils/formatters.js.
+export const toDisplayDate = (value) => {
+  if (value instanceof Date) return value
+  const match = String(value).match(CALENDAR_DAY)
+  if (!match) return new Date(value)
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+}
+
 export const formatDate = (date) => {
   if (!date) return ''
-  return format(new Date(date), "d 'de' MMMM, yyyy", { locale: es })
+  return format(toDisplayDate(date), "d 'de' MMMM, yyyy", { locale: es })
 }
 
 export const formatTime = (time) => {

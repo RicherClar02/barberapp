@@ -86,10 +86,7 @@ export default function OwnerAgenda() {
     return true
   })
 
-  const getApptSlot = (appt) => {
-    const time = appt.time || appt.slot || ''
-    return time.slice(0, 5)
-  }
+  const getApptSlot = (appt) => (appt.startTime || '').slice(0, 5)
 
   const getApptsByBarberAndHour = (barberId, hour) =>
     appointments.filter(a => a.barber?.id === barberId && getApptSlot(a).startsWith(hour.slice(0, 2)))
@@ -292,13 +289,11 @@ export default function OwnerAgenda() {
               </div>
               <div className="bg-cream rounded-lg p-3">
                 <p className="text-secondary text-xs">Hora</p>
-                <p className="font-semibold">{formatTime(getApptSlot(selectedAppt))} — {formatTime(
-                  (() => {
-                    const [h, m] = getApptSlot(selectedAppt).split(':')
-                    const end = new Date(0, 0, 0, parseInt(h), parseInt(m) + 40)
-                    return `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`
-                  })()
-                )}</p>
+                <p className="font-semibold">
+                  {selectedAppt.startTime
+                    ? `${formatTime(selectedAppt.startTime)}${selectedAppt.endTime ? ` — ${formatTime(selectedAppt.endTime)}` : ''}`
+                    : '—'}
+                </p>
               </div>
               <div className="bg-cream rounded-lg p-3">
                 <p className="text-secondary text-xs">Estado</p>
