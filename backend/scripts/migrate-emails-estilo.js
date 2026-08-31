@@ -15,6 +15,9 @@ const { PrismaClient } = require('@prisma/client')
 const { PrismaPg } = require('@prisma/adapter-pg')
 const pg = require('pg')
 
+// Antes de tocar la base: a dónde apunta este script.
+require('../src/lib/dbTarget').announceDbTarget('migrate-emails-estilo')
+
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL })
 const prisma = new PrismaClient({ adapter: new PrismaPg(pool) })
 

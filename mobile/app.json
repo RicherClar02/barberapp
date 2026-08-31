@@ -2,6 +2,7 @@
   "expo": {
     "name": "Estilo",
     "slug": "estilo",
+    "owner": "ricjer",
     "scheme": "estilo",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -18,7 +19,6 @@
     },
     "ios": {
       "bundleIdentifier": "co.rcstudio.estilo",
-      "buildNumber": "1",
       "supportsTablet": false,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Estilo usa tu ubicación para mostrarte las barberías más cercanas y calcular distancias. Puedes desactivar este permiso en cualquier momento desde Ajustes.",
@@ -30,7 +30,6 @@
     },
     "android": {
       "package": "co.rcstudio.estilo",
-      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#4A2C0A"
@@ -40,8 +39,7 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
+        "POST_NOTIFICATIONS",
         "INTERNET"
       ]
     },
@@ -49,6 +47,15 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36
+          }
+        }
+      ],
       "expo-secure-store",
       [
         "expo-location",
@@ -62,7 +69,8 @@
         "expo-image-picker",
         {
           "photosPermission": "Estilo accede a tu galería para que puedas elegir fotos para tu perfil o para tu barbería.",
-          "cameraPermission": "Estilo usa la cámara para que puedas tomar fotos de tu perfil o subir imágenes a tu galería (solo si eres barbero o dueño)."
+          "cameraPermission": "Estilo usa la cámara para que puedas tomar fotos de tu perfil o subir imágenes a tu galería (solo si eres barbero o dueño).",
+          "microphonePermission": false
         }
       ],
       [
@@ -73,6 +81,11 @@
           "sounds": []
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "e780f4f9-342d-4700-a553-18ee9a325875"
+      }
+    }
   }
 }

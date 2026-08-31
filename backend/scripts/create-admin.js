@@ -70,6 +70,9 @@ async function main() {
   }
 
   const { password, isDefault } = resolvePassword()
+  // Antes de tocar la base: a dónde apunta este script. Crea un ADMIN, así que
+  // importa especialmente saber si está pegando a local o a producción.
+  require('../src/lib/dbTarget').announceDbTarget('create-admin')
   const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL })
   const prisma = new PrismaClient({ adapter: new PrismaPg(pool) })
 

@@ -73,6 +73,44 @@ const nowInShopTimezone = (now = new Date(), timeZone = SHOP_TIMEZONE) => {
   }
 }
 
+// Cuántos ms va por delante de UTC la zona de la barbería en ese instante.
+// Colombia no tiene horario de verano, pero se calcula en vez de asumir -5
+// para que apuntar SHOP_TIMEZONE a otra zona siga dando bien.
+const shopUtcOffsetMs = (instant, timeZone = SHOP_TIMEZONE) => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).formatToParts(instant)
+
+  const get = type => Number(parts.find(p => p.type === type).value)
+  const hour = get('hour') === 24 ? 0 : get('hour')
+  // La hora local leída, interpretada como si fuera UTC. La diferencia contra
+  // el instante real es el offset de la zona.
+  const asIfUtc = Date.UTC(
+    get('year'), get('month') - 1, get('day'),
+    hour, get('minute'), get('second'), instant.getUTCMilliseconds()
+  )
+  return asIfUtc - instant.getTime()
+}
+
+// Un día de calendario (validFrom/validUntil de una oferta, date de una cita)
+// se guarda como medianoche UTC. Para compararlo hay que usar el día de HOY en
+// la zona de la barbería, también como medianoche UTC: así la comparación es
+// día contra día y no instante contra instante, que es lo que corría la
+// vigencia un día.
+const shopTodayUtcMidnight = (now = new Date(), timeZone = SHOP_TIMEZONE) =>
+  new Date(`${nowInShopTimezone(now, timeZone).date}T00:00:00.000Z`)
+
+// Instante en que termina, en hora de la barbería, el día de calendario que
+// representa `value`. "Vigente hasta el 30" vale todo el 30, no hasta su
+// medianoche.
+const endOfShopDay = (value, timeZone = SHOP_TIMEZONE) => {
+  const [y, m, d] = new Date(value).toISOString().slice(0, 10).split('-').map(Number)
+  const wallEnd = Date.UTC(y, m - 1, d, 23, 59, 59, 999)
+  return new Date(wallEnd - shopUtcOffsetMs(new Date(wallEnd), timeZone))
+}
+
 // Descarta los slots cuya hora de inicio ya pasó, pero SOLO si la fecha pedida
 // es hoy: para días futuros la grilla entera es válida, y para días pasados no
 // queda ninguna. Antes no se filtraba nada, así que pedir la disponibilidad de
@@ -102,5 +140,8 @@ module.exports = {
   filterPastSlots,
   isPastDateTime,
   nowInShopTimezone,
+  shopUtcOffsetMs,
+  shopTodayUtcMidnight,
+  endOfShopDay,
   SHOP_TIMEZONE,
 }

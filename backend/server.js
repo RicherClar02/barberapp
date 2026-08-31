@@ -3,7 +3,9 @@ const { validateEnv, config } = require('./src/config/env')
 // Validar variables obligatorias ANTES de cargar el resto:
 // si JWT_SECRET falta o es débil, el servidor NO arranca
 validateEnv()
-console.log('DATABASE_URL:', process.env.DATABASE_URL ? '✓ Cargado' : '✗ No cargado')
+// "✓ Cargado" solo confirmaba que la variable existe, no a dónde apunta, que
+// es el único dato que distingue la base local de producción.
+require('./src/lib/dbTarget').announceDbTarget('server')
 console.log('NODE_ENV:', config.nodeEnv)
 const express = require('express')
 const cors = require('cors')
