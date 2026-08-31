@@ -91,11 +91,14 @@ export default function MapScreen({ navigation }) {
           showsUserLocation
           showsMyLocationButton={false}
         >
+          {/* El backend devuelve latitude/longitude (los nombres del modelo).
+              Antes se leía shop.lat/shop.lng, que no existen: el mapa quedaba
+              vacío aunque la barbería tuviera coordenadas cargadas. */}
           {shops.map(shop =>
-            shop.lat && shop.lng ? (
+            shop.latitude != null && shop.longitude != null ? (
               <Marker
                 key={shop.id}
-                coordinate={{ latitude: parseFloat(shop.lat), longitude: parseFloat(shop.lng) }}
+                coordinate={{ latitude: parseFloat(shop.latitude), longitude: parseFloat(shop.longitude) }}
                 onPress={() => { setSelected(shop) }}
                 pinColor={shop.plan === 'PREMIUM' ? colors.accent : colors.secondary}
               />

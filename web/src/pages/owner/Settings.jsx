@@ -106,9 +106,9 @@ export default function OwnerSettings() {
     enabled: !!shopId,
   })
 
-  const [info, setInfo] = useState({ name: '', description: '', address: '', city: '', phone: '', instagram: '' })
+  const [info, setInfo] = useState({ name: '', description: '', address: '', city: '', phone: '', instagram: '', latitude: null, longitude: null })
   useEffect(() => {
-    if (shop) setInfo({ name: shop.name || '', description: shop.description || '', address: shop.address || '', city: shop.city || '', phone: shop.phone || '', instagram: shop.instagram || '' })
+    if (shop) setInfo({ name: shop.name || '', description: shop.description || '', address: shop.address || '', city: shop.city || '', phone: shop.phone || '', instagram: shop.instagram || '', latitude: shop.latitude ?? null, longitude: shop.longitude ?? null })
   }, [shop])
 
   const { mutate: saveInfo, isPending: savingInfo } = useMutation({
@@ -116,6 +116,22 @@ export default function OwnerSettings() {
     onSuccess: () => { toast.success('Información guardada'); qc.invalidateQueries({ queryKey: ['my-barbershops'] }) },
     onError: (err) => toast.error(err.response?.data?.message || 'Error'),
   })
+
+  // El dueño pega el link de Google Maps de su local y el backend lo traduce a
+  // lat/lng. Las coordenadas quedan en el formulario, no se guardan solas: se
+  // mandan con el resto de la ficha al tocar "Guardar Cambios".
+  const [mapLink, setMapLink] = useState('')
+  const { mutate: resolveMapLink, isPending: resolvingMap } = useMutation({
+    mutationFn: () => api.post('/api/barbershops/resolve-map-link', { url: mapLink }).then(r => r.data),
+    onSuccess: (coords) => {
+      setInfo(prev => ({ ...prev, latitude: coords.latitude, longitude: coords.longitude }))
+      setMapLink('')
+      toast.success('Ubicación encontrada. Guardá los cambios para aplicarla.')
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'No pudimos leer ese link'),
+  })
+
+  const hasCoords = info.latitude != null && info.longitude != null
 
   const [schedules, setSchedules] = useState(
     DAYS.map((d, i) => ({ dayOfWeek: DAY_OF_WEEK[i], dayName: d, isOpen: true, openTime: '08:00', closeTime: '18:00' }))
@@ -243,6 +259,45 @@ export default function OwnerSettings() {
             <label className="text-sm font-medium text-muted block mb-1">Descripción</label>
             <textarea className="w-full rounded-lg border border-[rgba(74,44,10,0.1)] px-3 py-2.5 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent resize-none bg-white"
               rows={3} value={info.description} onChange={e => setInfo({ ...info, description: e.target.value })} />
+          </div>
+          <div className="mt-4 rounded-lg border border-[rgba(74,44,10,0.1)] p-4">
+            <label className="text-sm font-medium text-muted block">Ubicación en el mapa</label>
+            <p className="text-xs text-muted mt-0.5">
+              Abrí tu local en Google Maps, tocá <span className="font-medium">Compartir</span> y pegá el link acá.
+              Sin esto tu barbería no aparece en el mapa de la app.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2 mt-2">
+              <input
+                type="url"
+                value={mapLink}
+                onChange={e => setMapLink(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && mapLink.trim() && !resolvingMap) resolveMapLink() }}
+                placeholder="https://maps.app.goo.gl/..."
+                className="flex-1 rounded-lg border border-[rgba(74,44,10,0.1)] px-3 py-2.5 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent bg-white" />
+              <button
+                type="button"
+                onClick={() => resolveMapLink()}
+                disabled={resolvingMap || !mapLink.trim()}
+                className="px-4 py-2.5 bg-accent text-white rounded-lg text-sm font-medium hover:bg-secondary transition-colors disabled:opacity-50 whitespace-nowrap">
+                {resolvingMap ? 'Buscando...' : 'Buscar ubicación'}
+              </button>
+            </div>
+            <div className="mt-2 text-xs">
+              {hasCoords ? (
+                <span className="text-green-700">
+                  📍 Ubicación guardada: {info.latitude}, {info.longitude}
+                  {' · '}
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${info.latitude},${info.longitude}`}
+                    target="_blank" rel="noreferrer"
+                    className="underline hover:no-underline">
+                    ver en el mapa
+                  </a>
+                </span>
+              ) : (
+                <span className="text-muted">Todavía sin ubicación — tu barbería no se muestra en el mapa.</span>
+              )}
+            </div>
           </div>
           {shopId && (
             <div className="mt-4">

@@ -25,6 +25,14 @@ export const toDisplayDate = (value) => {
   return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
 }
 
+// Una oferta "válida hasta el 30 de septiembre" vale TODO el 30, no hasta su
+// medianoche. Comparar contra toDisplayDate() la mataría a las 00:00 de ese
+// día; contra el valor crudo (medianoche UTC) la mataba a las 7pm del 29.
+export const endOfLocalDay = (value) => {
+  const d = toDisplayDate(value)
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999)
+}
+
 export const formatDate = (date) => {
   if (!date) return ''
   return format(toDisplayDate(date), "d 'de' MMMM, yyyy", { locale: es })

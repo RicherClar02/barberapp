@@ -1,5 +1,6 @@
 const barbershopService = require('../services/barbershop.service')
 const { safeMessage } = require('../utils/safeError')
+const { resolveMapLink } = require('../utils/googleMaps')
 
 // Recibe los datos del body y llama al servicio para crear la barbería
 // El ownerId lo saca del token JWT (req.user.id), no del body
@@ -67,4 +68,16 @@ const getCompletenessController = async (req, res) => {
   }
 }
 
-module.exports = { createController, getAllController, getByIdController, updateController, getMyBarbershopsController, getCompletenessController }
+// Traduce el link de Google Maps que pegó el dueño a lat/lng.
+// No guarda nada: devuelve las coordenadas para que el formulario las muestre
+// y el dueño confirme antes de mandarlas con el resto de la ficha.
+const resolveMapLinkController = async (req, res) => {
+  try {
+    const coordinates = await resolveMapLink(req.body?.url)
+    res.status(200).json(coordinates)
+  } catch (error) {
+    res.status(400).json({ message: safeMessage(error) })
+  }
+}
+
+module.exports = { createController, getAllController, getByIdController, updateController, getMyBarbershopsController, getCompletenessController, resolveMapLinkController }

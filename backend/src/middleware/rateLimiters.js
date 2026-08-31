@@ -126,7 +126,21 @@ const findByEmailLimiter = rateLimit({
   message: { message: 'Demasiadas búsquedas de usuarios. Intenta en 15 minutos.' },
 })
 
+// Resolver link de Google Maps: 20 por dueño cada 15 min. El endpoint hace una
+// petición saliente con una URL que manda el cliente, así que sin límite sirve
+// para usar el servidor como proxy de tráfico o para agotarle los sockets.
+// Un dueño ubicando su local lo usa dos o tres veces.
+const mapLinkLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: perUserKey,
+  message: { message: 'Demasiados intentos de ubicación. Intenta en 15 minutos.' },
+})
+
 module.exports = {
+  mapLinkLimiter,
   registerLimiter,
   loginLimiter,
   findByEmailLimiter,

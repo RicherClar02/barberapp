@@ -1,8 +1,9 @@
 const express = require('express')
 const router = express.Router()
-const { createController, getAllController, getByIdController, updateController, getMyBarbershopsController, getCompletenessController } = require('../controllers/barbershop.controller')
+const { createController, getAllController, getByIdController, updateController, getMyBarbershopsController, getCompletenessController, resolveMapLinkController } = require('../controllers/barbershop.controller')
 const { authMiddleware, optionalAuthMiddleware, requireRole } = require('../middleware/auth.middleware')
 const { validateBarbershop } = require('../middleware/validate.middleware')
+const { mapLinkLimiter } = require('../middleware/rateLimiters')
 
 /**
  * @swagger
@@ -191,6 +192,56 @@ router.get('/:id', getByIdController)
  *         description: Solo rol OWNER puede crear barberías
  */
 router.post('/', authMiddleware, requireRole('OWNER'), validateBarbershop, createController)
+
+/**
+ * @swagger
+ * /api/barbershops/resolve-map-link:
+ *   post:
+ *     summary: Traducir un link de Google Maps a latitud y longitud
+ *     description: >
+ *       Acepta el link corto que da el botón Compartir de Maps
+ *       (maps.app.goo.gl), el link largo de la barra del navegador, o unas
+ *       coordenadas pegadas a mano ("4.6097, -74.0817"). Sigue el redirect
+ *       solo hacia hosts de Google y rechaza puntos fuera de Colombia.
+ *       No guarda nada: devuelve las coordenadas para que el dueño confirme.
+ *     tags: [Barbershops]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [url]
+ *             properties:
+ *               url:
+ *                 type: string
+ *                 example: "https://maps.app.goo.gl/AbCdEf123"
+ *     responses:
+ *       200:
+ *         description: Coordenadas encontradas
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 latitude:
+ *                   type: number
+ *                   example: 4.142
+ *                 longitude:
+ *                   type: number
+ *                   example: -73.6266
+ *       400:
+ *         description: Link ilegible, ajeno a Google Maps, o ubicación fuera de Colombia
+ *       401:
+ *         description: Token no proporcionado
+ *       403:
+ *         description: Solo rol OWNER
+ *       429:
+ *         description: Demasiados intentos
+ */
+router.post('/resolve-map-link', authMiddleware, requireRole('OWNER'), mapLinkLimiter, resolveMapLinkController)
 
 /**
  * @swagger

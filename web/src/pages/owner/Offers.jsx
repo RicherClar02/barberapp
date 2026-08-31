@@ -8,13 +8,15 @@ import Card from '../../components/ui/Card'
 import Modal from '../../components/ui/Modal'
 import Input from '../../components/ui/Input'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
-import { formatCurrency, formatDate } from '../../utils/formatters'
+import { formatCurrency, formatDate, toDisplayDate, endOfLocalDay } from '../../utils/formatters'
 
 function useCountdown(until) {
   const [remaining, setRemaining] = useState('')
   useEffect(() => {
     const tick = () => {
-      const diff = new Date(until) - new Date()
+      // validUntil es un día de calendario: la oferta vence al final de ese
+      // día en hora local, no en su medianoche UTC.
+      const diff = endOfLocalDay(until) - new Date()
       if (diff <= 0) { setRemaining('Vencida'); return }
       const d = Math.floor(diff / (1000 * 60 * 60 * 24))
       const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
@@ -124,9 +126,13 @@ export default function OwnerOffers() {
     saveOffer(data)
   }
 
+  // validFrom y validUntil son días de calendario guardados como medianoche
+  // UTC. Comparándolos crudos, en Bogotá la oferta arrancaba 5h antes (7pm del
+  // día anterior) y moría 29h antes (7pm de la víspera del último día). Vale
+  // desde el arranque del primer día hasta el final del último, en hora local.
   const isOfferActive = (o) => {
     const now = new Date()
-    return o.isActive && new Date(o.validFrom) <= now && new Date(o.validUntil) >= now
+    return o.isActive && toDisplayDate(o.validFrom) <= now && endOfLocalDay(o.validUntil) >= now
   }
 
   return (
