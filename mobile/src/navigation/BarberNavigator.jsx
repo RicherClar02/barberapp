@@ -1,6 +1,6 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { Text } from 'react-native'
-import { colors, fontSize } from '../constants/theme'
+import useTabBarOptions from './useTabBarOptions'
 
 import AgendaScreen from '../screens/barber/AgendaScreen'
 import CalendarScreen from '../screens/barber/CalendarScreen'
@@ -15,23 +15,10 @@ function TabIcon({ emoji, focused }) {
 }
 
 export default function BarberNavigator() {
+  const screenOptions = useTabBarOptions()
+
   return (
-    <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: {
-          backgroundColor: colors.white,
-          borderTopColor: colors.graySoft,
-          borderTopWidth: 1,
-          height: 64,
-          paddingBottom: 8,
-          paddingTop: 4,
-        },
-        tabBarLabelStyle: { fontSize: fontSize.xs, fontWeight: '600' },
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.secondary,
-      }}
-    >
+    <Tab.Navigator screenOptions={screenOptions}>
       <Tab.Screen name="Mi Agenda" component={AgendaScreen}
         options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="📅" focused={focused} /> }} />
       <Tab.Screen name="Calendario" component={CalendarScreen}

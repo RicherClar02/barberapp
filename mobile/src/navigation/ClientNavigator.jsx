@@ -1,7 +1,7 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { createStackNavigator } from '@react-navigation/stack'
 import { Text, View } from 'react-native'
-import { colors, fontSize } from '../constants/theme'
+import useTabBarOptions from './useTabBarOptions'
 
 import HomeScreen from '../screens/client/HomeScreen'
 import BarbershopDetail from '../screens/client/BarbershopDetail'
@@ -43,23 +43,10 @@ function TabIcon({ emoji, focused }) {
 }
 
 export default function ClientNavigator() {
+  const screenOptions = useTabBarOptions()
+
   return (
-    <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: {
-          backgroundColor: colors.white,
-          borderTopColor: colors.graySoft,
-          borderTopWidth: 1,
-          height: 64,
-          paddingBottom: 8,
-          paddingTop: 4,
-        },
-        tabBarLabelStyle: { fontSize: fontSize.xs, fontWeight: '600' },
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.secondary,
-      }}
-    >
+    <Tab.Navigator screenOptions={screenOptions}>
       <Tab.Screen name="Inicio" component={HomeStackNav}
         options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" focused={focused} /> }} />
       <Tab.Screen name="Mapa" component={MapScreen}
