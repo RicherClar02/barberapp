@@ -45,3 +45,27 @@ export const addDaysToKey = (dateKey, days) => {
 // Los próximos `count` días de calendario desde `from`, como claves YYYY-MM-DD.
 export const dayKeysFrom = (from, count) =>
   Array.from({ length: count }, (_, i) => addDaysToKey(from, i))
+
+// Estados en los que una cita sigue "abierta": nadie la cerró todavía.
+export const OPEN_STATUSES = ['PENDING', 'CONFIRMED', 'IN_PROGRESS']
+
+// ¿La cita ya terminó, medida en hora de la barbería? Se compara contra
+// endTime, no startTime: mientras el servicio está en curso la cita sigue
+// siendo próxima. Mismo criterio de día que el backend, que guarda `date`
+// como medianoche UTC, de ahí el slice(0, 10).
+export const hasEnded = (appointment, now = new Date()) => {
+  const fin = appointment?.endTime || appointment?.startTime
+  if (!fin) return false
+
+  const dia = String(appointment.date || '').slice(0, 10)
+  const ahora = shopNow(now)
+
+  if (dia < ahora.date) return true
+  if (dia > ahora.date) return false
+  return fin <= ahora.time
+}
+
+// Cita que ya pasó pero que nadie cerró: no se toca su estado, solo se
+// muestra distinto. El barbero es quien decide si fue COMPLETED o NO_SHOW.
+export const needsClosing = (appointment, now = new Date()) =>
+  OPEN_STATUSES.includes(appointment?.status) && hasEnded(appointment, now)

@@ -71,8 +71,8 @@ export default function BookingFlow({ route, navigation }) {
   })
 
   // serviceId es obligatorio: el backend calcula la duración del slot a partir
-  // del servicio y responde 400 sin él. El barbero también: no hay barbero
-  // "cualquiera" en el backend, así que no se consulta hasta tener uno elegido.
+  // del servicio y responde 400 sin él. El barbero también: hay que elegir uno
+  // concreto, así que no se consultan slots hasta tenerlo.
   const slotsEnabled = !!shopId && !!barber?.id && !!date && !!serviceId
   const {
     data: slotsData,
@@ -199,17 +199,6 @@ export default function BookingFlow({ route, navigation }) {
         {step === 0 && (
           <View>
             <Text style={styles.stepTitle}>¿Con quién te atenderás?</Text>
-            <TouchableOpacity
-              style={[styles.barberItem, !barber && styles.barberItemSelected]}
-              onPress={() => setBarber(null)}
-            >
-              <Text style={{ fontSize: 28 }}>🎲</Text>
-              <View style={{ flex: 1, marginLeft: spacing.md }}>
-                <Text style={styles.barberItemName}>Cualquier barbero disponible</Text>
-                <Text style={styles.barberItemSub}>Asignado automáticamente</Text>
-              </View>
-              {!barber && <Text style={{ color: colors.accent, fontWeight: '700', fontSize: fontSize.lg }}>✓</Text>}
-            </TouchableOpacity>
             {barbers.map(b => (
               <TouchableOpacity
                 key={b.id}

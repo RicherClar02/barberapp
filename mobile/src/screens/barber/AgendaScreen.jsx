@@ -11,6 +11,7 @@ import api from '../../api/axios'
 import useAuthStore from '../../store/authStore'
 import { colors, fontSize, spacing, radius, shadows, STATUS_COLORS } from '../../constants/theme'
 import { formatTime, getStatusLabel, formatCurrency } from '../../utils/formatters'
+import { needsClosing } from '../../utils/shopTime'
 
 const HOURS = Array.from({ length: 13 }, (_, i) => i + 8)
 
@@ -61,6 +62,15 @@ export default function AgendaScreen() {
 
   const now = new Date()
   const nowHour = now.getHours() + now.getMinutes() / 60
+
+  // Citas cuya hora de fin ya pasó y que nadie cerró. No se les cambia el
+  // estado: se listan aparte, arriba, para que el barbero las cierre a mano.
+  // Van en un bloque propio y no reordenadas dentro de la agenda porque la
+  // agenda es una línea de tiempo por hora: moverlas de fila rompería la
+  // lectura cronológica, que es justo para lo que sirve.
+  const porCerrar = appointments
+    .filter(a => needsClosing(a))
+    .sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''))
 
   const completedToday = appointments.filter(a => a.status === 'COMPLETED').length
   const totalToday = appointments.length
@@ -203,6 +213,35 @@ export default function AgendaScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
         showsVerticalScrollIndicator={false}
       >
+        {porCerrar.length > 0 && (
+          <View style={styles.porCerrarBox}>
+            <Text style={styles.porCerrarTitle}>
+              {porCerrar.length === 1
+                ? '1 cita terminó y sigue sin cerrar'
+                : `${porCerrar.length} citas terminaron y siguen sin cerrar`}
+            </Text>
+            <Text style={styles.porCerrarHint}>
+              Tocá cada una para marcarla completada o no-show.
+            </Text>
+            {porCerrar.map(a => (
+              <TouchableOpacity
+                key={a.id}
+                style={styles.porCerrarItem}
+                onPress={() => setSelected(a)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.porCerrarHora}>
+                  {formatTime(a.startTime)} → {formatTime(a.endTime)}
+                </Text>
+                <Text style={styles.porCerrarNombre} numberOfLines={1}>
+                  {a.client?.name || 'Cliente'}
+                </Text>
+                <Text style={styles.porCerrarChevron}>›</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
         {/* Current time line */}
         {isToday && (
           <View style={[styles.nowLine, { top: (nowHour - 8) * 88 }]}>
@@ -518,6 +557,30 @@ const styles = StyleSheet.create({
   statValue: { fontSize: fontSize.sm, fontWeight: '700', color: colors.primary },
   statLabel: { fontSize: 9, color: colors.muted, marginTop: 1 },
   timeline: { flex: 1, paddingHorizontal: spacing.lg, position: 'relative' },
+  porCerrarBox: {
+    backgroundColor: '#FEF3C7',
+    borderLeftWidth: 4,
+    borderLeftColor: '#D97706',
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  porCerrarTitle: { fontSize: fontSize.md, fontWeight: '700', color: '#92400E' },
+  porCerrarHint: { fontSize: fontSize.xs, color: '#92400E', marginTop: 2, marginBottom: spacing.sm },
+  porCerrarItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.white,
+    borderRadius: radius.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    marginTop: spacing.xs,
+  },
+  porCerrarHora: { fontSize: fontSize.sm, fontWeight: '700', color: colors.primary },
+  porCerrarNombre: { flex: 1, fontSize: fontSize.sm, color: colors.secondary },
+  porCerrarChevron: { fontSize: fontSize.lg, color: colors.secondary },
+
   nowLine: {
     position: 'absolute',
     left: spacing.lg + 48,

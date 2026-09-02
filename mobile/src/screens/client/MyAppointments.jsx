@@ -9,6 +9,7 @@ import { es } from 'date-fns/locale'
 import api from '../../api/axios'
 import { colors, fontSize, spacing, radius, shadows, STATUS_COLORS } from '../../constants/theme'
 import { formatDate, formatTime, formatCurrency, getStatusLabel } from '../../utils/formatters'
+import { hasEnded, OPEN_STATUSES } from '../../utils/shopTime'
 
 const TABS = ['Próximas', 'Historial']
 
@@ -39,13 +40,19 @@ export default function MyAppointments({ navigation }) {
 
   const appointments = data?.appointments || data || []
 
-  const upcoming = appointments.filter(a =>
-    ['PENDING', 'CONFIRMED', 'IN_PROGRESS'].includes(a.status)
-  ).sort((a, b) => new Date(a.date + 'T' + a.startTime) - new Date(b.date + 'T' + b.startTime))
+  // "Próximas" se decidía solo por estado, así que una cita CONFIRMED de las
+  // 15:00 seguía ahí a las 15:45 hasta que el barbero la cerrara. Ahora, en
+  // cuanto pasa su hora de FIN, se va a Historial. No se le toca el estado:
+  // el barbero es el único que la marca completada o no-show.
+  const yaTermino = a => hasEnded(a)
+  const abierta = a => OPEN_STATUSES.includes(a.status)
+  const cerrada = a => ['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(a.status)
 
-  const history = appointments.filter(a =>
-    ['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(a.status)
-  ).sort((a, b) => new Date(b.date + 'T' + b.startTime) - new Date(a.date + 'T' + a.startTime))
+  const upcoming = appointments.filter(a => abierta(a) && !yaTermino(a))
+    .sort((a, b) => new Date(a.date + 'T' + a.startTime) - new Date(b.date + 'T' + b.startTime))
+
+  const history = appointments.filter(a => cerrada(a) || (abierta(a) && yaTermino(a)))
+    .sort((a, b) => new Date(b.date + 'T' + b.startTime) - new Date(a.date + 'T' + a.startTime))
 
   const cancelMutation = useMutation({
     mutationFn: (id) => api.put(`/api/appointments/${id}/cancel`),
