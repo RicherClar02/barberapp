@@ -11,15 +11,17 @@ const {
 // Reproduce lo que calendar.service.js hace con los slots de un día,
 // sin tocar la base de datos: misma grilla, mismas citas activas.
 const buildDayView = (openTime, closeTime, slotDuration, activeAppointments) => {
-  const allSlots = generateSlots(openTime, closeTime, slotDuration)
+  // calendar.service pasa gridMinutes = null: grilla encadenada.
+  const allSlots = generateSlots(openTime, closeTime, slotDuration, null)
   return {
     occupiedSlots: allSlots.filter(s => !isSlotFree(s, activeAppointments)).map(s => s.startTime),
     freeSlots: allSlots.filter(s => isSlotFree(s, activeAppointments)).map(s => s.startTime)
   }
 }
 
-test('generateSlots genera la grilla de 40 min entre apertura y cierre', () => {
-  const slots = generateSlots('09:00', '12:00', 40)
+test('generateSlots en modo encadenado mantiene la grilla de 40 min', () => {
+  // gridMinutes = null es lo que usa la agenda del barbero.
+  const slots = generateSlots('09:00', '12:00', 40, null)
 
   assert.deepStrictEqual(slots, [
     { startTime: '09:00', endTime: '09:40' },
@@ -30,10 +32,80 @@ test('generateSlots genera la grilla de 40 min entre apertura y cierre', () => {
 })
 
 test('generateSlots no emite un slot que se pase de la hora de cierre', () => {
-  const slots = generateSlots('09:00', '10:00', 40)
+  const slots = generateSlots('09:00', '10:00', 40, null)
 
   // 09:40 + 40 = 10:20 > 10:00, así que solo entra el primero
   assert.deepStrictEqual(slots, [{ startTime: '09:00', endTime: '09:40' }])
+})
+
+test('la grilla de reserva cae en :00, :15, :30 y :45', () => {
+  const slots = generateSlots('09:00', '11:00', 48)
+
+  assert.deepStrictEqual(slots.map(s => s.startTime), [
+    '09:00', '09:15', '09:30', '09:45', '10:00'
+  ])
+  // Ningún cupo arranca fuera de un cuarto de hora.
+  assert.ok(slots.every(s => [0, 15, 30, 45].includes(Number(s.startTime.split(':')[1]))))
+})
+
+test('un servicio de 48 min ya no produce horas como 16:48', () => {
+  const inicios = generateSlots('09:00', '19:00', 48).map(s => s.startTime)
+
+  assert.ok(!inicios.includes('09:48'))
+  assert.ok(!inicios.includes('16:48'))
+  assert.ok(inicios.includes('16:45'))
+})
+
+test('solo se ofrece el cupo si el servicio COMPLETO cabe antes del cierre', () => {
+  // 09:15 + 48 = 10:03, pasado el cierre: no debe ofrecerse.
+  const slots = generateSlots('09:00', '10:00', 48)
+
+  assert.deepStrictEqual(slots, [{ startTime: '09:00', endTime: '09:48' }])
+})
+
+test('si la barbería abre fuera de un cuarto, el primer cupo es el siguiente cuarto', () => {
+  const slots = generateSlots('09:10', '11:00', 30)
+
+  assert.strictEqual(slots[0].startTime, '09:15')
+})
+
+test('los cupos de la grilla se solapan entre sí y una cita tomada limpia los vecinos', () => {
+  const slots = generateSlots('09:00', '12:00', 48)
+  // Se ofrecen candidatos solapados: 09:00, 09:15, 09:30...
+  assert.ok(slots.length > 3)
+
+  const tomada = [{ startTime: '09:00', endTime: '09:48' }]
+  const libres = filterAvailableSlots(slots, tomada).map(s => s.startTime)
+
+  // Todo lo que choca con 09:00–09:48 desaparece; 10:00 sobrevive.
+  assert.ok(!libres.includes('09:00'))
+  assert.ok(!libres.includes('09:15'))
+  assert.ok(!libres.includes('09:30'))
+  assert.ok(!libres.includes('09:45'))
+  assert.ok(libres.includes('10:00'))
+})
+
+test('la capacidad real del día baja de 12 a 10 citas de 48 min', () => {
+  // El número que se usó para decidir el cambio: reservar siempre el primer
+  // cupo libre, como haría una fila de clientes, en el horario del seed.
+  const contarCitas = (grid) => {
+    const tomadas = []
+    let libres = filterAvailableSlots(generateSlots('09:00', '19:00', 48, grid), tomadas)
+    while (libres.length) {
+      tomadas.push(libres[0])
+      libres = filterAvailableSlots(generateSlots('09:00', '19:00', 48, grid), tomadas)
+    }
+    return tomadas.length
+  }
+
+  assert.strictEqual(contarCitas(null), 12)  // encadenada, como estaba
+  assert.strictEqual(contarCitas(15), 10)    // grilla de cuartos
+})
+
+test('un servicio de 15 min no pierde capacidad con la grilla de cuartos', () => {
+  // Es la razón de elegir cuartos y no medias horas: con :00/:30 este
+  // servicio caía de 40 cupos a 20.
+  assert.strictEqual(generateSlots('09:00', '19:00', 15).length, 40)
 })
 
 test('overlaps detecta solapamiento parcial, no solo arranque exacto', () => {
@@ -112,15 +184,23 @@ test('sin citas activas todos los slots quedan libres', () => {
 })
 
 // --- Paridad entre los dos consumidores del módulo ---
-test('la disponibilidad de reserva y la agenda coinciden sobre las mismas citas', () => {
+test('reserva y agenda nunca se contradicen sobre una cita tomada', () => {
+  // Las dos vistas ya NO producen la misma lista: reserva usa la grilla de
+  // cuartos y la agenda la encadenada, a propósito. Lo que sí tiene que
+  // seguir valiendo es que no se contradigan — que reserva jamás ofrezca un
+  // horario que pise una cita que la agenda da por ocupada.
   const active = [{ startTime: '09:00', endTime: '10:00' }]
 
-  // appointment.service.js: grilla por duración del servicio, devuelve objetos
   const bookingSlots = filterAvailableSlots(generateSlots('09:00', '12:00', 40), active)
-  // calendar.service.js: misma grilla, devuelve strings
-  const { freeSlots } = buildDayView('09:00', '12:00', 40, active)
+  const { occupiedSlots, freeSlots } = buildDayView('09:00', '12:00', 40, active)
 
-  assert.deepStrictEqual(bookingSlots.map(s => s.startTime), freeSlots)
+  // Ningún cupo ofrecido se solapa con la cita activa.
+  assert.ok(bookingSlots.every(s => isSlotFree(s, active)))
+  // Y ninguno arranca dentro de la franja que la agenda marca ocupada.
+  assert.ok(bookingSlots.every(s => !(s.startTime >= '09:00' && s.startTime < '10:00')))
+  // La agenda sigue reportando esa franja como ocupada y no como libre.
+  assert.ok(occupiedSlots.includes('09:00'))
+  assert.ok(!freeSlots.includes('09:00'))
 })
 
 test('calendar.service.js devuelve arrays de strings (shape que consume el frontend)', () => {
@@ -148,7 +228,8 @@ test('filterPastSlots descarta los cupos de hoy cuya hora ya pasó', () => {
   const quedan = filterPastSlots(slots, '2026-08-28', HOY_1830_BOGOTA)
 
   assert.ok(quedan.every(s => s.startTime > '18:30'), 'no debe quedar ningún cupo pasado')
-  assert.deepStrictEqual(quedan.map(s => s.startTime), ['18:40', '19:20'])
+  // Cuartos: 19:30 + 40 = 20:10, pasado el cierre, así que no entra.
+  assert.deepStrictEqual(quedan.map(s => s.startTime), ['18:45', '19:00', '19:15'])
 })
 
 test('filterPastSlots no toca la grilla de un día futuro', () => {
@@ -174,7 +255,7 @@ test('filterPastSlots usa la hora de Bogotá, no la UTC del servidor', () => {
   assert.deepStrictEqual(nowInShopTimezone(madrugadaUtc).date, '2026-08-27')
   assert.deepStrictEqual(
     filterPastSlots(slots, '2026-08-27', madrugadaUtc).map(s => s.startTime),
-    ['21:00', '22:00']
+    ['20:45', '21:00', '21:15', '21:30', '21:45', '22:00']
   )
 })
 

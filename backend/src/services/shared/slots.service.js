@@ -3,16 +3,43 @@
 // calendar.service.js (vista de agenda del barbero), para que ambos
 // respondan lo mismo sobre qué horario está libre y cuál no.
 
-// Genera slots de tiempo entre apertura y cierre con la duración indicada
-// Ejemplo: openTime="08:00", closeTime="20:00", duration=30
-// Resultado: [{ startTime: "08:00", endTime: "08:30" }, { startTime: "08:30", endTime: "09:00" }, ...]
-const generateSlots = (openTime, closeTime, duration) => {
+// Paso de la grilla de reserva: los cupos caen siempre en :00, :15, :30 y :45.
+// Antes la grilla se encadenaba con la duración del servicio, así que un
+// servicio de 48 min producía horas como 16:48 y 19:12: correcto pero feo de
+// leer. Cuartos y no medias horas porque con media hora un servicio de 15 min
+// perdía la mitad de la capacidad del día (40 cupos pasaban a 20); con cuartos
+// no pierde ninguno, y para 48 min cuesta exactamente lo mismo.
+const BOOKING_GRID_MINUTES = 15
+
+// Genera los cupos que se le ofrecen al cliente entre apertura y cierre.
+//
+// `gridMinutes` es el paso de la grilla de pared:
+//   - 15 (default) → cupos en :00/:15/:30/:45. Se emite uno por cada marca en
+//     la que el servicio COMPLETO cabe antes del cierre. Los cupos se solapan
+//     entre sí a propósito: son horarios candidatos, y filterAvailableSlots
+//     descarta los que chocan con una cita ya tomada.
+//   - null → modo encadenado (arranca en la apertura y avanza de a `duration`,
+//     sin solaparse). Lo usa la agenda del barbero, donde la lista de cupos se
+//     cuenta como capacidad del día y no como horarios ofrecibles.
+//
+// Ejemplo: openTime="09:00", closeTime="10:00", duration=48
+// Resultado: [{ startTime: "09:00", endTime: "09:48" }] — 09:15 no entra
+// porque terminaría 10:03, después del cierre.
+const generateSlots = (openTime, closeTime, duration, gridMinutes = BOOKING_GRID_MINUTES) => {
   const slots = []
   const [openH, openM] = openTime.split(':').map(Number)
   const [closeH, closeM] = closeTime.split(':').map(Number)
 
-  let currentMinutes = openH * 60 + openM
+  const openMinutes = openH * 60 + openM
   const closeMinutes = closeH * 60 + closeM
+  const paso = gridMinutes || duration
+
+  // Con grilla, el primer cupo es la primera marca en la apertura o después
+  // (una barbería que abre 09:10 empieza a ofrecer 09:15). Encadenado, arranca
+  // exactamente en la apertura.
+  let currentMinutes = gridMinutes
+    ? Math.ceil(openMinutes / gridMinutes) * gridMinutes
+    : openMinutes
 
   while (currentMinutes + duration <= closeMinutes) {
     const startH = String(Math.floor(currentMinutes / 60)).padStart(2, '0')
@@ -26,7 +53,7 @@ const generateSlots = (openTime, closeTime, duration) => {
       endTime: `${endH}:${endM}`
     })
 
-    currentMinutes += duration
+    currentMinutes += paso
   }
 
   return slots
@@ -134,6 +161,7 @@ const isPastDateTime = (date, startTime, now = new Date(), timeZone = SHOP_TIMEZ
 
 module.exports = {
   generateSlots,
+  BOOKING_GRID_MINUTES,
   overlaps,
   isSlotFree,
   filterAvailableSlots,

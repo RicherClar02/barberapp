@@ -99,7 +99,10 @@ const getBarberCalendar = async (barberId, query, userId, userRole) => {
       // Un slot queda ocupado si se solapa con la cita en cualquier punto:
       // una cita de 60 min a las 09:00 sobre grilla de 40 min bloquea
       // también el slot de las 09:40 (antes aparecía libre).
-      const allSlots = generateSlots(schedule.openTime, schedule.closeTime, slotDuration)
+      // gridMinutes = null: grilla encadenada, sin solapes. Esta vista cuenta
+      // capacidad del día (freeSlots.length), no ofrece horarios de reserva,
+      // así que no usa la grilla de cuartos del flujo de reserva.
+      const allSlots = generateSlots(schedule.openTime, schedule.closeTime, slotDuration, null)
       occupiedSlots = allSlots.filter(s => !isSlotFree(s, active)).map(s => s.startTime)
       freeSlots = allSlots.filter(s => isSlotFree(s, active)).map(s => s.startTime)
     }
