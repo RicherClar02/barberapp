@@ -1,6 +1,6 @@
 const https = require('https')
 const prisma = require('../lib/prisma')
-const { isPastDateTime } = require('./shared/slots.service')
+const { isPastDateTime, nowInShopTimezone } = require('./shared/slots.service')
 
 // Motivos de fallo del asistente. Cada uno tiene un mensaje distinto para el
 // cliente: antes los cuatro casos (falta la key, sin créditos, rate limit,
@@ -60,8 +60,14 @@ const callAnthropic = (messages, systemPrompt) => {
     }
 
     const body = JSON.stringify({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1024,
+      // Configurable por entorno para poder cambiar de modelo sin desplegar
+      // código. Se lee en cada llamada, no al cargar el módulo, para que un
+      // cambio de variable no exija reiniciar el proceso.
+      model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5',
+      // 2048 y no 1024: en los modelos con razonamiento adaptativo los tokens
+      // de pensamiento cuentan contra este techo, así que una consulta compleja
+      // podía quedar truncada. Solo se paga lo que se genera, no el techo.
+      max_tokens: 2048,
       system: systemPrompt,
       messages,
     })
@@ -96,7 +102,13 @@ const callAnthropic = (messages, systemPrompt) => {
             err.status = res.statusCode
             return reject(err)
           }
-          resolve(parsed.content?.[0]?.text || '')
+          // El primer bloque NO siempre es el texto: los modelos con
+          // razonamiento adaptativo (Sonnet 5 en adelante) devuelven un
+          // bloque "thinking" en content[0] y dejan la respuesta en el
+          // siguiente. Leer content[0].text a ciegas daba undefined y el
+          // cliente veía "Entendido." en vez de la respuesta real.
+          const bloqueTexto = parsed.content?.find(b => b.type === 'text')
+          resolve(bloqueTexto?.text || '')
         } catch (e) {
           e.status = e.status || res.statusCode
           reject(e)
@@ -108,6 +120,25 @@ const callAnthropic = (messages, systemPrompt) => {
     req.write(body)
     req.end()
   })
+}
+
+// Mismo orden que schedule.dayOfWeek y que Date#getUTCDay().
+const DAY_NAMES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+
+// Ancla temporal que se le pasa al modelo. Sin esto el prompt no llevaba
+// ninguna fecha y el modelo inventaba qué día era hoy a partir de su prior:
+// un martes respondía "hoy es lunes" y cruzaba ese día contra HORARIOS para
+// decirle al cliente que la barbería estaba cerrada. El nombre del día se
+// calcula acá y no se deja deducir del YYYY-MM-DD, que es el mismo error una
+// capa más abajo. La fecha se lee en la zona de la barbería, igual que hace
+// la disponibilidad de slots: el servidor corre en UTC y a partir de las
+// 19:00 hora Colombia ya está en el día siguiente.
+const shopNowForPrompt = (now = new Date()) => {
+  const { date, time } = nowInShopTimezone(now)
+  // Medianoche UTC de esa fecha civil: leer getUTCDay() sobre eso da el día
+  // de la semana sin que la zona del proceso lo corra.
+  const dayName = DAY_NAMES[new Date(`${date}T00:00:00.000Z`).getUTCDay()]
+  return { date, time, dayName }
 }
 
 // Carga el contexto de la barbería: barberos (SOLO de esta barbería, con
@@ -132,9 +163,8 @@ const loadShopContext = async (barbershopId) => {
     }),
   ])
 
-  const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
   const scheduleText = schedules
-    .map(s => s.isOpen ? `${dayNames[s.dayOfWeek]}: ${s.openTime}–${s.closeTime}` : `${dayNames[s.dayOfWeek]}: Cerrado`)
+    .map(s => s.isOpen ? `${DAY_NAMES[s.dayOfWeek]}: ${s.openTime}–${s.closeTime}` : `${DAY_NAMES[s.dayOfWeek]}: Cerrado`)
     .join(', ')
 
   return {
@@ -182,7 +212,7 @@ const resolveBarberByName = (nameOrSelection, barbers) => {
   return { status: 'none', matches: [] }
 }
 
-const SYSTEM_PROMPT_TEMPLATE = (ctx) => `
+const SYSTEM_PROMPT_TEMPLATE = (ctx, shopNow) => `
 Eres el asistente virtual de "${ctx.shopName}", una barbería ubicada en ${ctx.address}.
 
 BARBEROS DE ESTA BARBERÍA (id | nombre completo | especialidad | rating):
@@ -246,6 +276,21 @@ Responde ÚNICAMENTE con JSON válido en este formato:
 
 Si el usuario quiere reservar, recopila barbero (resuelto a barberId), servicio, fecha y hora antes de confirmar.
 Si falta información o hay ambigüedad, pídela en el campo "reply" con intent "clarify".
+
+FECHA Y HORA ACTUALES (AUTORIDAD ABSOLUTA):
+Hoy es ${shopNow.dayName} ${shopNow.date} y en la barbería son las ${shopNow.time}.
+Este dato lo calcula el servidor y es la ÚNICA fuente de verdad sobre qué día y
+qué hora es. NUNCA lo deduzcas, lo supongas ni lo contradigas, y NUNCA digas que
+hoy es otro día del que dice esta línea.
+Resolvé TODA fecha relativa contra ese dato:
+- "hoy" es ${shopNow.date} (${shopNow.dayName})
+- "mañana" es el día siguiente a ${shopNow.date}
+- "el viernes", "el próximo martes" y similares son la PRÓXIMA vez que cae ese
+  día contando desde ${shopNow.date}, nunca una que ya pasó
+El campo "date" que devuelvas nunca puede ser anterior a ${shopNow.date}, y si es
+igual a ${shopNow.date} entonces "time" tiene que ser posterior a ${shopNow.time}.
+Para decir si la barbería abre o cierra un día, buscá el nombre de ESE día en
+HORARIOS. Para "hoy" el día que tenés que buscar es ${shopNow.dayName}.
 `
 
 const processMessage = async (userId, barbershopId, text) => {
@@ -258,7 +303,7 @@ const processMessage = async (userId, barbershopId, text) => {
   history.reverse()
 
   const ctx = await loadShopContext(barbershopId)
-  const systemPrompt = SYSTEM_PROMPT_TEMPLATE(ctx)
+  const systemPrompt = SYSTEM_PROMPT_TEMPLATE(ctx, shopNowForPrompt())
 
   const messages = [
     ...history.map(m => ({ role: m.role, content: m.content })),
@@ -421,6 +466,8 @@ const getHistory = async (userId, barbershopId, limit = 50) => {
 module.exports = {
   processMessage,
   getHistory,
+  shopNowForPrompt,
+  SYSTEM_PROMPT_TEMPLATE,
   resolveBarberByName,
   resolveBarberForBooking,
   loadShopContext,
