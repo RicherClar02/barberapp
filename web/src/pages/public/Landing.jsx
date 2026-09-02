@@ -49,7 +49,9 @@ const PLANS = [
 ]
 
 export default function Landing() {
-  useDocumentTitle('Reserva tu cita en la barbería')
+  // Tiene que coincidir con el <title> de index.html: el hook lo pisa al montar
+  // y Google indexa el título que queda después de ejecutar el JS, no el estático.
+  useDocumentTitle('Reserva tu cita en barberías de Villavicencio')
 
   return (
     <PublicLayout wide>
@@ -60,7 +62,7 @@ export default function Landing() {
             Hecho en Villavicencio para toda Colombia 🇨🇴
           </span>
           <h1 className="mb-5 font-heading text-4xl font-bold leading-tight text-primary sm:text-5xl">
-            Tu próximo corte,<br />reservado en un minuto
+            Tu próximo corte en Villavicencio,<br />reservado en un minuto
           </h1>
           <p className="mx-auto mb-8 max-w-xl text-lg leading-relaxed text-secondary">
             Estilo conecta a quienes buscan barbería con los barberos de su ciudad. Encuentra,

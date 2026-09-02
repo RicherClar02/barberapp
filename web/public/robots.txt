@@ -1,0 +1,15 @@
+# Lo público se indexa; el panel no.
+User-agent: *
+Allow: /
+
+# Rutas con sesión: no aportan nada en resultados de búsqueda.
+Disallow: /owner
+Disallow: /barber
+Disallow: /superadmin
+Disallow: /profile
+Disallow: /login
+
+# Enlace con token que llega por correo, no es una página de destino.
+Disallow: /eliminar-cuenta/confirmar
+
+Sitemap: https://www.citasestilo.com/sitemap.xml
