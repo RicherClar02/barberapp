@@ -1,6 +1,8 @@
 const https = require('https')
 const prisma = require('../lib/prisma')
 const { isPastDateTime, nowInShopTimezone } = require('./shared/slots.service')
+const { createAppointment } = require('./appointment.service')
+const { safeMessage } = require('../utils/safeError')
 
 // Motivos de fallo del asistente. Cada uno tiene un mensaje distinto para el
 // cliente: antes los cuatro casos (falta la key, sin créditos, rate limit,
@@ -125,6 +127,45 @@ const callAnthropic = (messages, systemPrompt) => {
 // Mismo orden que schedule.dayOfWeek y que Date#getUTCDay().
 const DAY_NAMES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
 
+// El texto que le confirma una cita al cliente lo escribe SIEMPRE el código, a
+// partir de la fila que quedó en la base — nunca el modelo, y nunca a partir
+// de lo que el modelo dijo que iba a reservar. Si el modelo alucinó la hora, o
+// createAppointment corrigió algo, lo que se lee es lo que realmente se guardó.
+const buildConfirmationReply = (appointment) => {
+  const fechaIso = new Date(appointment.date).toISOString().slice(0, 10)
+  const dayName = DAY_NAMES[new Date(`${fechaIso}T00:00:00.000Z`).getUTCDay()]
+  const barberName = appointment.barber?.user?.name || 'tu barbero'
+  const serviceName = appointment.service?.name || 'tu servicio'
+
+  return (
+    `✅ ¡Cita reservada! ${serviceName} con ${barberName} el ${dayName} ${fechaIso} ` +
+    `a las ${appointment.startTime}. Te recordaremos 15 min antes.`
+  )
+}
+
+// Afirmaciones de que la cita YA quedó hecha. El modelo no tiene forma de
+// saberlo: cuando responde, la cita todavía no se creó. Si el código no creó
+// nada en este turno y el modelo igual afirma que sí, el cliente se iría con
+// una cita que no existe — así que ese texto se descarta y se reemplaza.
+const BOOKING_CLAIM_PATTERNS = [
+  /\bcita\s+(?:ya\s+)?(?:quedó|quedo|está|esta|fue)\s+(?:reservada|agendada|confirmada|registrada|creada)/i,
+  /\b(?:reserv|agend|confirm|registr)(?:é|e|ada|ado|amos)\s+(?:tu|la|su)\s+cita/i,
+  /\b(?:tu|su)\s+cita\s+(?:para|el|con)\b[^.!?]*\b(?:quedó|quedo|confirmada|agendada|reservada|lista)\b/i,
+  /\bcita\s+(?:reservada|agendada|confirmada)\b/i,
+  /\b(?:listo|perfecto|excelente)[,!.\s]+(?:ya\s+)?(?:te\s+)?(?:la\s+)?(?:reserv|agend|confirm)/i,
+  /\bte\s+esper(?:amos|o)\s+el\b/i,
+  /\bnos\s+vemos\s+el\b/i,
+]
+
+const claimsBookingHappened = (text) =>
+  !!text && BOOKING_CLAIM_PATTERNS.some(re => re.test(text))
+
+// Lo que se le dice al cliente cuando el modelo afirmó una reserva que nunca
+// ocurrió. No inventa una causa: dice que no quedó y pide reintentar.
+const UNBACKED_CLAIM_REPLY =
+  'No pude confirmar la reserva, así que tu cita NO quedó agendada. ' +
+  'Decime de nuevo el barbero, el servicio, el día y la hora y lo intento otra vez.'
+
 // Ancla temporal que se le pasa al modelo. Sin esto el prompt no llevaba
 // ninguna fecha y el modelo inventaba qué día era hoy a partir de su prior:
 // un martes respondía "hoy es lunes" y cruzaba ese día contra HORARIOS para
@@ -133,12 +174,32 @@ const DAY_NAMES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Vierne
 // capa más abajo. La fecha se lee en la zona de la barbería, igual que hace
 // la disponibilidad de slots: el servidor corre en UTC y a partir de las
 // 19:00 hora Colombia ya está en el día siguiente.
+const UPCOMING_DAYS = 7
+const MS_PER_DAY = 24 * 60 * 60 * 1000
+
 const shopNowForPrompt = (now = new Date()) => {
   const { date, time } = nowInShopTimezone(now)
   // Medianoche UTC de esa fecha civil: leer getUTCDay() sobre eso da el día
   // de la semana sin que la zona del proceso lo corra.
-  const dayName = DAY_NAMES[new Date(`${date}T00:00:00.000Z`).getUTCDay()]
-  return { date, time, dayName }
+  const midnight = new Date(`${date}T00:00:00.000Z`)
+  const dayName = DAY_NAMES[midnight.getUTCDay()]
+
+  // Los próximos 7 días ya resueltos a fecha y nombre de día. Con solo el
+  // ancla de hoy el modelo seguía teniendo que contar días para "el viernes" o
+  // "en tres días", y ahí se equivocaba: saltaba fines de mes, o le asignaba a
+  // una fecha el día de la semana que no era. Acá no queda nada que calcular,
+  // solo una tabla que copiar. Se avanza sumando días sobre medianoche UTC,
+  // que no tiene horario de verano ni saltos.
+  const upcomingDays = Array.from({ length: UPCOMING_DAYS }, (_, i) => {
+    const d = new Date(midnight.getTime() + i * MS_PER_DAY)
+    return {
+      date: d.toISOString().slice(0, 10),
+      dayName: DAY_NAMES[d.getUTCDay()],
+      offset: i,
+    }
+  })
+
+  return { date, time, dayName, upcomingDays }
 }
 
 // Carga el contexto de la barbería: barberos (SOLO de esta barbería, con
@@ -282,13 +343,16 @@ Hoy es ${shopNow.dayName} ${shopNow.date} y en la barbería son las ${shopNow.ti
 Este dato lo calcula el servidor y es la ÚNICA fuente de verdad sobre qué día y
 qué hora es. NUNCA lo deduzcas, lo supongas ni lo contradigas, y NUNCA digas que
 hoy es otro día del que dice esta línea.
-Resolvé TODA fecha relativa contra ese dato:
-- "hoy" es ${shopNow.date} (${shopNow.dayName})
-- "mañana" es el día siguiente a ${shopNow.date}
-- "el viernes", "el próximo martes" y similares son la PRÓXIMA vez que cae ese
-  día contando desde ${shopNow.date}, nunca una que ya pasó
-El campo "date" que devuelvas nunca puede ser anterior a ${shopNow.date}, y si es
-igual a ${shopNow.date} entonces "time" tiene que ser posterior a ${shopNow.time}.
+CALENDARIO DE LOS PRÓXIMOS 7 DÍAS (calculado por el servidor):
+${(shopNow.upcomingDays || []).map(d => `- ${d.date} es ${d.dayName}${d.offset === 0 ? ' (HOY)' : d.offset === 1 ? ' (MAÑANA)' : ''}`).join('\n')}
+
+Esa tabla es la ÚNICA forma de convertir un día en fecha. NUNCA cuentes días,
+NUNCA sumes al calendario y NUNCA deduzcas qué día de la semana cae una fecha:
+buscá la línea y copiá el valor. Si el cliente pide "el viernes", tomá la fecha
+de la línea que dice Viernes. Si pide un día que no está en la tabla (más de 7
+días adelante), pedile la fecha exacta con intent "clarify".
+El campo "date" que devuelvas tiene que ser una de las fechas de esa tabla, y si
+es ${shopNow.date} entonces "time" tiene que ser posterior a ${shopNow.time}.
 Para decir si la barbería abre o cierra un día, buscá el nombre de ESE día en
 HORARIOS. Para "hoy" el día que tenés que buscar es ${shopNow.dayName}.
 `
@@ -350,8 +414,27 @@ const processMessage = async (userId, barbershopId, text) => {
       // La cita no se creó: degradar el intent para que el front no asuma éxito
       parsed.intent = 'clarify'
     } else if (actionResult?.appointment) {
-      parsed.reply = `✅ ¡Cita reservada! ${actionResult.barberName} el ${parsed.date} a las ${parsed.time} para ${parsed.serviceName}. Te recordaremos 15 min antes.`
+      // Confirmación escrita por el código a partir de la fila creada.
+      parsed.reply = buildConfirmationReply(actionResult.appointment)
     }
+  }
+
+  // Red de seguridad final: si en este turno NO se creó ninguna cita, la
+  // respuesta no puede afirmar que sí. El modelo redacta antes de que el
+  // código intente nada, así que puede decir "listo, tu cita quedó" con
+  // intent "faq" o con datos incompletos, sin que se haya creado nada. Ese es
+  // el único texto que el cliente no puede leer: se cambia por uno que dice
+  // la verdad, y queda el rastro en el log.
+  const bookedThisTurn = !!actionResult?.appointment
+  if (!bookedThisTurn && claimsBookingHappened(parsed.reply)) {
+    console.error(
+      `[chatbot] el modelo afirmó una reserva que no ocurrió ` +
+      `(userId=${userId}, barbershopId=${barbershopId}, intent=${parsed.intent}). ` +
+      `Respuesta descartada:`,
+      parsed.reply
+    )
+    parsed.reply = UNBACKED_CLAIM_REPLY
+    parsed.intent = 'clarify'
   }
 
   // Guardar respuesta del asistente
@@ -420,9 +503,9 @@ const handleBookAppointment = async (userId, barbershopId, parsed, ctx) => {
     const service = ctx.services.find(s => s.name.toLowerCase().includes(parsed.serviceName?.toLowerCase()))
     if (!service) return { error: `No encontré el servicio "${parsed.serviceName}". Los servicios disponibles son: ${ctx.services.map(s => s.name).join(', ')}` }
 
-    // Este camino crea la cita directo, sin pasar por createAppointment: sin
-    // esta validación la IA podía reservar en el pasado si interpretaba mal
-    // una fecha ("el viernes" del viernes que ya fue).
+    // Chequeo temprano solo para dar un mensaje mejor que el genérico del
+    // servicio. La validación que manda es la de createAppointment: acá no se
+    // decide nada que el servicio no vuelva a verificar.
     if (isPastDateTime(parsed.date, parsed.time)) {
       return { error: 'Esa fecha y hora ya pasaron. Decime un horario a futuro y te la reservo.' }
     }
@@ -431,27 +514,37 @@ const handleBookAppointment = async (userId, barbershopId, parsed, ctx) => {
     if (resolution.error) return { error: resolution.error }
     const barber = resolution.barber
 
-    // Calcular endTime
-    const [h, m] = parsed.time.split(':').map(Number)
-    const endMinutes = h * 60 + m + service.duration
-    const endTime = `${String(Math.floor(endMinutes / 60)).padStart(2, '0')}:${String(endMinutes % 60).padStart(2, '0')}`
-
-    const appointment = await prisma.appointment.create({
-      data: {
-        clientId: userId,
+    // La cita se crea por createAppointment, el mismo camino que usa la app.
+    // Antes se escribía directo con prisma.appointment.create y eso salteaba
+    // TODAS las validaciones del servicio: se podía reservar encima de otra
+    // cita del mismo barbero, fuera del horario de la barbería, o con un
+    // servicio de otra barbería. También quedaba sin notificar al barbero.
+    const appointment = await createAppointment(
+      {
         barbershopId,
         barberId: barber.id,
         serviceId: service.id,
-        date: new Date(parsed.date),
+        date: parsed.date,
         startTime: parsed.time,
-        endTime,
-        totalPrice: service.price,
-        status: 'PENDING',
       },
-    })
+      userId
+    )
     return { appointment, barberName: barber.name }
   } catch (err) {
-    return { error: 'No pude crear la cita. Verifica la disponibilidad e intenta de nuevo.' }
+    // El error real va al log ANTES de devolver el mensaje para el cliente.
+    // Sin esta línea, un solape, un horario fuera de rango y un fallo de Prisma
+    // se veían exactamente igual desde afuera y no dejaban rastro: era
+    // imposible saber por qué una reserva no entraba.
+    console.error(
+      `[chatbot] fallo al crear la cita (userId=${userId}, barbershopId=${barbershopId}, ` +
+      `date=${parsed?.date}, time=${parsed?.time}, servicio=${parsed?.serviceName}):`,
+      err
+    )
+    // safeMessage deja pasar los errores de dominio de createAppointment
+    // ("El barbero ya tiene una cita en ese horario", "La barbería no abre este
+    // día"), que están escritos para el cliente, y reemplaza los de Prisma, que
+    // filtrarían nombres de tablas y columnas.
+    return { error: safeMessage(err) }
   }
 }
 
@@ -472,6 +565,9 @@ module.exports = {
   resolveBarberForBooking,
   loadShopContext,
   classifyAiError,
+  buildConfirmationReply,
+  claimsBookingHappened,
+  UNBACKED_CLAIM_REPLY,
   AI_FAILURE,
   AI_FAILURE_REPLY,
 }

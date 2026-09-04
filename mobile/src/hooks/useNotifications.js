@@ -7,7 +7,13 @@ import useAuthStore from '../store/authStore'
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    // shouldShowAlert quedó deprecado en expo-notifications 0.29 y ya no se
+    // lee en la 0.32 (SDK 54): se partió en dos decisiones separadas, el
+    // banner que aparece arriba y la entrada que queda en el centro de
+    // notificaciones. Mientras se mandaba el campo viejo, con la app abierta
+    // no se mostraba nada.
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
   }),
@@ -42,8 +48,19 @@ export default function useNotifications(navigationRef) {
     })
 
     return () => {
-      Notifications.removeNotificationSubscription(notifListener.current)
-      Notifications.removeNotificationSubscription(responseListener.current)
+      // Cada suscripción se cierra con su propio .remove(). La función suelta
+      // Notifications.removeNotificationSubscription ya no existe en la 0.32, y
+      // al cerrar sesión este cleanup corría igual: la llamada reventaba con
+      // "is not a function" y se llevaba puesta la app entera.
+      //
+      // El optional chaining no es decorativo: si el efecto se desmonta antes
+      // de que los listeners queden asignados (logout inmediato, o el registro
+      // de push todavía en vuelo), los refs siguen en undefined y .remove()
+      // sobre undefined vuelve a tirar el mismo crash.
+      notifListener.current?.remove()
+      responseListener.current?.remove()
+      notifListener.current = undefined
+      responseListener.current = undefined
     }
   }, [isAuthenticated])
 }

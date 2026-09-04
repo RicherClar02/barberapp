@@ -64,5 +64,47 @@ test('sin el ancla el prompt no mencionaba ninguna fecha (regresión)', () => {
   const prompt = SYSTEM_PROMPT_TEMPLATE(ctx, shopNowForPrompt(MARTES_1533_CO))
   const fechas = prompt.match(/\d{4}-\d{2}-\d{2}/g) || []
   assert.ok(fechas.length > 0, 'el prompt debe llevar la fecha de hoy')
-  assert.ok(fechas.every(f => f === '2026-09-01'))
+  // Ninguna fecha del prompt puede ser anterior a hoy ni caer fuera de la
+  // ventana de 7 días: son las únicas que el modelo tiene permitido devolver.
+  assert.ok(fechas.every(f => f >= '2026-09-01' && f <= '2026-09-07'))
+})
+
+// --- Calendario precalculado de 7 días ---------------------------------
+
+test('shopNowForPrompt precalcula 7 días con su nombre de día', () => {
+  const { upcomingDays } = shopNowForPrompt(MARTES_1533_CO)
+  assert.strictEqual(upcomingDays.length, 7)
+  assert.deepStrictEqual(
+    upcomingDays.map(d => `${d.date} ${d.dayName}`),
+    [
+      '2026-09-01 Martes',
+      '2026-09-02 Miércoles',
+      '2026-09-03 Jueves',
+      '2026-09-04 Viernes',
+      '2026-09-05 Sábado',
+      '2026-09-06 Domingo',
+      '2026-09-07 Lunes',
+    ]
+  )
+})
+
+test('el calendario cruza el fin de mes sin saltarse días', () => {
+  // 30 de septiembre: los días siguientes son de octubre.
+  const finDeMes = shopNowForPrompt(new Date('2026-09-30T15:00:00.000Z'))
+  assert.deepStrictEqual(
+    finDeMes.upcomingDays.map(d => d.date),
+    ['2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03',
+     '2026-10-04', '2026-10-05', '2026-10-06']
+  )
+  assert.strictEqual(finDeMes.upcomingDays[0].dayName, 'Miércoles')
+  assert.strictEqual(finDeMes.upcomingDays[1].dayName, 'Jueves')
+})
+
+test('el prompt lleva la tabla de días y le prohíbe al modelo calcular', () => {
+  const prompt = SYSTEM_PROMPT_TEMPLATE(ctx, shopNowForPrompt(MARTES_1533_CO))
+  assert.ok(prompt.includes('CALENDARIO DE LOS PRÓXIMOS 7 DÍAS'))
+  assert.ok(prompt.includes('2026-09-01 es Martes (HOY)'))
+  assert.ok(prompt.includes('2026-09-02 es Miércoles (MAÑANA)'))
+  assert.ok(prompt.includes('2026-09-04 es Viernes'))
+  assert.ok(prompt.includes('NUNCA cuentes días'))
 })
