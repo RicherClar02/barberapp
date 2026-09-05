@@ -16,6 +16,13 @@ const Tab = createBottomTabNavigator()
 const HomeStack = createStackNavigator()
 const ApptStack = createStackNavigator()
 
+// La pestaña Mapa queda apagada, no borrada. react-native-maps usa Google Maps,
+// que exige una cuenta de facturación activa; sin ella la pantalla revienta al
+// montarse. Con una sola barbería el mapa tampoco aporta nada sobre el listado
+// de Inicio, así que apagarlo elimina el crash sin depender de Google.
+// Para reactivarla: poner esto en true (la pantalla y su import siguen acá).
+const MAPA_HABILITADO = false
+
 function HomeStackNav() {
   return (
     <HomeStack.Navigator screenOptions={{ headerShown: false }}>
@@ -49,8 +56,10 @@ export default function ClientNavigator() {
     <Tab.Navigator screenOptions={screenOptions}>
       <Tab.Screen name="Inicio" component={HomeStackNav}
         options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" focused={focused} /> }} />
-      <Tab.Screen name="Mapa" component={MapScreen}
-        options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="🗺️" focused={focused} /> }} />
+      {MAPA_HABILITADO && (
+        <Tab.Screen name="Mapa" component={MapScreen}
+          options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="🗺️" focused={focused} /> }} />
+      )}
       <Tab.Screen name="Mis Citas" component={ApptStackNav}
         options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="📅" focused={focused} /> }} />
       <Tab.Screen name="Perfil" component={ProfileNavigator}

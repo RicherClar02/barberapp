@@ -91,6 +91,9 @@ export default function Login({ navigation }) {
               value={password}
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
+              autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="password"
               onFocus={() => setFocusedField('password')}
               onBlur={() => setFocusedField(null)}
             />

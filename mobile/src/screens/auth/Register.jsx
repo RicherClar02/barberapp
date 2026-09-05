@@ -22,7 +22,7 @@ const ROLES = [
 // el input se actualiza en lugar de remontarse.
 // Solo usa spacing, styles y colors, que también son de módulo: no cierra sobre
 // nada del estado de Register.
-const InputField = ({ label, value, onChangeText, placeholder, keyboardType, secure, showToggle, onToggle, error }) => (
+const InputField = ({ label, value, onChangeText, placeholder, keyboardType, secure, showToggle, onToggle, error, autoCapitalize }) => (
   <View style={{ marginBottom: spacing.md }}>
     <View style={[styles.inputWrapper, error && styles.inputWrapperError]}>
       <TextInput
@@ -33,7 +33,10 @@ const InputField = ({ label, value, onChangeText, placeholder, keyboardType, sec
         onChangeText={onChangeText}
         keyboardType={keyboardType || 'default'}
         secureTextEntry={secure}
-        autoCapitalize={keyboardType === 'email-address' ? 'none' : 'sentences'}
+        // Sin 'sentences' forzado: quien usa el campo decide. Si no lo dice,
+        // solo imponemos 'none' para email, donde una mayúscula inicial es
+        // siempre un error; el resto queda en manos de la plataforma.
+        autoCapitalize={autoCapitalize ?? (keyboardType === 'email-address' ? 'none' : undefined)}
       />
       {showToggle !== undefined && (
         <TouchableOpacity onPress={onToggle} style={{ padding: spacing.xs }}>
@@ -232,6 +235,9 @@ export default function Register({ navigation }) {
                 value={form.password}
                 onChangeText={v => set('password', v)}
                 secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                textContentType="password"
               />
               <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={{ padding: spacing.xs }}>
                 <Text style={{ fontSize: 14 }}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
@@ -249,6 +255,9 @@ export default function Register({ navigation }) {
                 value={form.confirmPassword}
                 onChangeText={v => set('confirmPassword', v)}
                 secureTextEntry={!showConfirm}
+                autoCapitalize="none"
+                autoCorrect={false}
+                textContentType="password"
               />
               <TouchableOpacity onPress={() => setShowConfirm(!showConfirm)} style={{ padding: spacing.xs }}>
                 <Text style={{ fontSize: 14 }}>{showConfirm ? '👁️' : '👁️‍🗨️'}</Text>
