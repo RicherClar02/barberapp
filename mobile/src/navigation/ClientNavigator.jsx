@@ -1,7 +1,8 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { createStackNavigator } from '@react-navigation/stack'
-import { Text, View } from 'react-native'
+import { View } from 'react-native'
 import useTabBarOptions from './useTabBarOptions'
+import TabIcon from '../components/ui/TabIcon'
 
 import HomeScreen from '../screens/client/HomeScreen'
 import BarbershopDetail from '../screens/client/BarbershopDetail'
@@ -43,27 +44,21 @@ function ApptStackNav() {
   )
 }
 
-function TabIcon({ emoji, focused }) {
-  return (
-    <Text style={{ fontSize: focused ? 22 : 20, opacity: focused ? 1 : 0.6 }}>{emoji}</Text>
-  )
-}
-
 export default function ClientNavigator() {
   const screenOptions = useTabBarOptions()
 
   return (
     <Tab.Navigator screenOptions={screenOptions}>
       <Tab.Screen name="Inicio" component={HomeStackNav}
-        options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" focused={focused} /> }} />
+        options={{ tabBarIcon: ({ focused }) => <TabIcon name="home" focused={focused} /> }} />
       {MAPA_HABILITADO && (
         <Tab.Screen name="Mapa" component={MapScreen}
-          options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="🗺️" focused={focused} /> }} />
+          options={{ tabBarIcon: ({ focused }) => <TabIcon name="map" focused={focused} /> }} />
       )}
       <Tab.Screen name="Mis Citas" component={ApptStackNav}
-        options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="📅" focused={focused} /> }} />
+        options={{ tabBarIcon: ({ focused }) => <TabIcon name="calendar" focused={focused} /> }} />
       <Tab.Screen name="Perfil" component={ProfileNavigator}
-        options={{ tabBarIcon: ({ focused }) => <TabIcon emoji="👤" focused={focused} /> }} />
+        options={{ tabBarIcon: ({ focused }) => <TabIcon name="user" focused={focused} /> }} />
     </Tab.Navigator>
   )
 }

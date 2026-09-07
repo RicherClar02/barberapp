@@ -53,24 +53,106 @@ Vocabulario: se dice **cita**, no "turno". **barbería**, no "local".
 de un array, ni como prop. Tampoco símbolos tipográficos sueltos (`✕ ✓ ★ ‹ › ➤ ▾ ●`)
 en lugar de un ícono.
 
-- **web:** `lucide-react` (ya instalado).
-- **móvil:** `Feather` de `@expo/vector-icons` — llega como dependencia transitiva de
-  `expo` (`@expo/vector-icons@15.1.1`), no hace falta instalarla.
-  `import Feather from '@expo/vector-icons/Feather'`
+- **Móvil: `Feather` de `@expo/vector-icons`, sin excepciones.** Llega como
+  dependencia transitiva de `expo` (`@expo/vector-icons@15.1.1`), no hace falta
+  instalarla. `import Feather from '@expo/vector-icons/Feather'`
+- **Web: `lucide-react`** (ya instalado). **Si lucide tiene un ícono mejor que el
+  equivalente Feather, se usa el mejor. Nunca se degrada web para igualar al móvil.**
+  La tabla lista los dos nombres por concepto y anota cuándo difieren y por qué.
 
-**Tamaños: 16 / 20 / 24.** Nada más.
+**Feather es una fuente, no SVG.** Se pinta con un glifo de `Feather.ttf`, así que
+no hay control de grosor de trazo (`strokeWidth` no existe: lo que llega es
+`size` y `color`) y puede haber un parpadeo de glifos sin cargar en el primer
+render, antes de que la fuente esté lista. lucide en web sí es SVG. Por eso los
+dos lados nunca van a quedar pixel a pixel iguales, y está bien.
+
+**Tamaños de interfaz: 16 / 20 / 24.** Nada más.
 16 inline junto a texto · 20 botones y filas · 24 headers y tab bar.
+
+**Arte de estado vacío: 48.** Aparte de la escala de interfaz, y solo ahí: el ícono
+grande y centrado de una pantalla sin datos. No uses 48 en una fila, un botón ni un
+header.
 
 **Color siempre desde tokens:** web `className="text-muted"`; móvil
 `color={colors.muted}`. Nunca un hex en el `color` de un ícono.
 
-### Tabla de equivalencia concepto → Feather → lucide
+### Tabla de equivalencia
 
-Solo nombres que existan en **las dos** librerías, para que web y móvil no se separen.
+| Concepto | Emoji que reemplaza | Feather (móvil) | lucide (web) | Tamaño |
+|---|---|---|---|---|
+| Barbería / corte / barbero | ✂️ ✂ | `scissors` | `Scissors` | 16 · 48 vacío |
+| Negocio / rol dueño | 🏪 🏢 | `briefcase` | `Store` ⚠ | 20 |
+| Cliente / perfil | 👤 | `user` | `User` | 24 tab · 20 fila |
+| Clientes / usuarios | 👥 | `users` | `Users` | 20 |
+| Inicio | 🏠 | `home` | `Home` | 24 tab |
+| Cita / fecha / calendario | 📅 🗓️ | `calendar` | `Calendar` | 20 · 24 tab |
+| Lista / agenda del día | 📋 | `list` | `List` | 20 · 24 tab |
+| Hora / horario / historial | 🕐 ⏰ ⏱️ | `clock` | `Clock` | 16 |
+| Refrescar / reintentar | ⟳ | `refresh-cw` | `RefreshCw` | 20 |
+| Dinero / ganancias | 💰 | `dollar-sign` | `DollarSign` | 20 · 24 tab |
+| Pago / suscripción | 💳 | `credit-card` | `CreditCard` | 20 |
+| Carné del barbero | 🪪 | `credit-card` | — solo móvil | 24 tab |
+| Oferta / cupón | 🎫 | `tag` | `Tag` | 16 |
+| Fidelización / corte gratis | 🎁 | `gift` | `Gift` | 16 |
+| Calificación | ⭐ ★ ☆ | `star` | `Star` | 16 |
+| Dirección / ciudad | 📍 📌 | `map-pin` | `MapPin` | 16 |
+| Mapa | 🗺️ | `map` | `Map` | 24 tab |
+| Usar mi ubicación (GPS) | 📡 | `crosshair` | `Crosshair` | 20 |
+| Llamar | 📞 | `phone` | `Phone` | 20 |
+| Teléfono (dato) | 📱 | `smartphone` | `Smartphone` | 16 |
+| WhatsApp / chat | 💬 | `message-circle` | `MessageCircle` | 20 · 24 FAB |
+| Correo | ✉️ 📧 | `mail` | `Mail` | 16 |
+| Notificaciones | 🔔 | `bell` | `Bell` | 24 header |
+| Buscar | 🔍 | `search` | `Search` | 20 |
+| Contraseña / privacidad | 🔒 | `lock` | `Lock` | 16 |
+| Ver contraseña | 👁️ | `eye` | `Eye` | 20 |
+| Ocultar contraseña | 👁️‍🗨️ 🙈 | `eye-off` | `EyeOff` | 20 |
+| Cambiar foto | 📷 | `camera` | `Camera` | 16 |
+| Subir archivo | 📁 | `upload` | `Upload` | 20 · 48 dropzone |
+| Descargar mis datos | 📥 | `download` | `Download` | 20 |
+| Imagen ausente | — | `image` | `Image` | 24 · 48 |
+| Anuncios / publicidad | 📢 | `image` ⚠ | `Megaphone` ⚠ | 20 · 48 vacío |
+| Premium | 👑 | `award` ⚠ | `Crown` ⚠ | 16 |
+| Editar | ✏️ ✏ | `edit-2` | `Edit2` | 20 |
+| Eliminar | 🗑️ | `trash-2` | `Trash2` | 20 |
+| Enviar | ➤ | `send` | `Send` | 20 |
+| Documento legal | 📄 | `file-text` | `FileText` | 16 · 48 vacío |
+| Aviso informativo | 📋 | `info` | `Info` | 16 |
+| Advertencia | ⚠️ ⚠ | `alert-triangle` | `AlertTriangle` | 16 · 20 |
+| Éxito / confirmado | ✅ | `check-circle` | `CheckCircle` | 20 |
+| Check simple / verificado | ✓ | `check` | `Check` | 16 |
+| Cancelado / rechazado | ❌ | `x-circle` | `XCircle` | 20 |
+| Cerrar | ✕ | `x` | `X` | 20 |
+| Atrás | ‹ | `chevron-left` | `ChevronLeft` | 24 |
+| Avanzar / chevron de fila | › | `chevron-right` | `ChevronRight` | 16 · 24 |
+| Desplegable | ▾ | `chevron-down` | `ChevronDown` | 16 |
+| Mañana (saludo) | ☀️ | `sun` | `Sun` | 16 |
+| Noche (saludo) | 🌙 | `moon` | `Moon` | 16 |
 
-| Concepto | Feather (móvil) | lucide (web) |
-|---|---|---|
-| _(vacía — se llena en el paso siguiente)_ | | |
+**⚠ Los cuatro casos donde los dos lados difieren, y por qué:**
+
+- **Negocio:** Feather no tiene `store`. Móvil usa `briefcase`; **web se queda con
+  `Store`**, que es el ícono correcto y ya está en uso. No se degrada web.
+- **Anuncios:** Feather no tiene `megaphone`. Móvil usa `image` (el anuncio es una
+  pieza gráfica); web usa `Megaphone`.
+- **Premium:** Feather no tiene `crown`. Móvil usa `award`; web usa `Crown`.
+- **Carné del barbero:** solo existe en móvil (pestaña del barbero), así que no hay
+  nada que igualar. `credit-card` no colisiona con "pago", que vive solo en web.
+
+### Lo que NO es un ícono
+
+- **Destacado** (antes ✨): etiqueta de texto con `colors.accent`. Sin ícono.
+- **Estado en línea** (antes 🟢): `View` circular con `colors.success`. Sin ícono.
+  Lo mismo para el `●` de activo/inactivo en web: punto de color con token.
+- **Bandera de Colombia** (🇨🇴): ninguna de las dos librerías trae banderas de país.
+  En el prefijo `+57` va solo el texto.
+- **Saludo por hora:** `getGreetingEmoji()` se elimina completo. Feather no tiene
+  `cloud-sun` para la tarde, y el saludo no necesita ícono.
+
+**Excepción — copy narrativo de marca.** Un emoji dentro de una frase de marca no es
+un ícono y se queda: "Hecho en Villavicencio, Colombia 🇨🇴" en `PublicLayout.jsx` y
+`Landing.jsx`. La regla prohíbe el emoji **como ícono**, no el emoji dentro de un
+texto que se lee como texto.
 
 ## Reusa, no reimplementes
 
