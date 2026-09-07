@@ -16,9 +16,9 @@ export default function BarberNavigator() {
   return (
     <Tab.Navigator screenOptions={screenOptions}>
       <Tab.Screen name="Mi Agenda" component={AgendaScreen}
-        options={{ tabBarIcon: ({ focused }) => <TabIcon name="calendar" focused={focused} /> }} />
-      <Tab.Screen name="Calendario" component={CalendarScreen}
         options={{ tabBarIcon: ({ focused }) => <TabIcon name="list" focused={focused} /> }} />
+      <Tab.Screen name="Calendario" component={CalendarScreen}
+        options={{ tabBarIcon: ({ focused }) => <TabIcon name="calendar" focused={focused} /> }} />
       <Tab.Screen name="Ganancias" component={EarningsScreen}
         options={{ tabBarIcon: ({ focused }) => <TabIcon name="dollar-sign" focused={focused} /> }} />
       <Tab.Screen name="Mi Tarjeta" component={MyCardScreen}
