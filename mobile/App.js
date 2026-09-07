@@ -7,6 +7,7 @@ import { useFonts } from 'expo-font'
 import * as SplashScreen from 'expo-splash-screen'
 import { Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins'
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-google-fonts/inter'
+import Feather from '@expo/vector-icons/Feather'
 import Toast from 'react-native-toast-message'
 import RootNavigator from './src/navigation'
 import useNotifications from './src/hooks/useNotifications'
@@ -39,6 +40,12 @@ export default function App() {
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
+    // Los íconos de Feather son glifos de una fuente, no SVG. Si no se precarga,
+    // el componente la pide al montarse y los íconos aparecen en blanco durante
+    // ese primer render — se nota sobre todo en la barra de pestañas.
+    // `Feather.font` es { feather: <asset> }, la misma familia que usa el
+    // componente internamente.
+    ...Feather.font,
   })
 
   // Un fallo al descargar las fuentes no puede dejar la app en blanco: se
