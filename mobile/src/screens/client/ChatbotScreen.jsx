@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import {
   View, Text, StyleSheet, FlatList, TextInput,
   TouchableOpacity, KeyboardAvoidingView, Platform,
@@ -86,11 +86,21 @@ export default function ChatbotScreen({ route, navigation }) {
 
   const allMessages = [...historyMessages, ...pendientes]
 
-  useEffect(() => {
-    if (allMessages.length > 0) {
-      setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 100)
-    }
-  }, [allMessages.length])
+  // La conversación se abre en el último mensaje. El salto de apertura es
+  // instantáneo (la pantalla ya aparece abajo, sin verse el viaje desde
+  // arriba) y los siguientes van animados: esos son los que llegan con un
+  // mensaje nuevo. Antes esto era un setTimeout de 100 ms disparado por la
+  // cantidad de mensajes; cuando el historial terminaba de cargar, la FlatList
+  // recién se montaba, el temporizador corría antes de que la lista midiera su
+  // contenido y el scroll no llegaba a ninguna parte, así que el chat abría
+  // arriba.
+  const yaBajoAlAbrir = useRef(false)
+
+  const bajarAlFinal = () => {
+    if (allMessages.length === 0) return
+    flatRef.current?.scrollToEnd({ animated: yaBajoAlAbrir.current })
+    yaBajoAlAbrir.current = true
+  }
 
   const sendMutation = useMutation({
     mutationFn: (msg) => api.post('/api/chatbot/message', { barbershopId: shopId, text: msg }),
@@ -160,6 +170,8 @@ export default function ChatbotScreen({ route, navigation }) {
           renderItem={({ item }) => <ChatBubble message={item} />}
           contentContainerStyle={styles.messagesList}
           showsVerticalScrollIndicator={false}
+          onContentSizeChange={bajarAlFinal}
+          onLayout={bajarAlFinal}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyIcon}>✂️</Text>
