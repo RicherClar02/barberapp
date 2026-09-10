@@ -1,4 +1,8 @@
 const prisma = require('../lib/prisma')
+// notifyNextInWaitlist las usaba sin importarlas: el ReferenceError caía en el
+// try del controlador y salía como 500 genérico, así que la lista de espera
+// nunca avisó a nadie y ninguna entrada llegó a marcarse NOTIFIED.
+const { sendWhatsApp, sendPushNotification } = require('./notification.service')
 
 // Unirse a la lista de espera
 const joinWaitlist = async (data, clientId) => {

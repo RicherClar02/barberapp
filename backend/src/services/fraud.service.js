@@ -1,4 +1,7 @@
 const prisma = require('../lib/prisma')
+// Sin este import, la detección de fraude reventaba justo cuando detectaba
+// algo: registrar la IP sospechosa era lo último que hacía antes de devolver.
+const { logSuspiciousIp } = require('../utils/securityLog')
 
 // Detección de patrones sospechosos en reseñas (anti-inflado de ratings).
 // Retorna { flagged: boolean, reason: string|null }. No lanza errores:
