@@ -1,8 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { format, subDays } from 'date-fns'
-import { es } from 'date-fns/locale'
 import api from '../../api/axios'
 import Card from '../../components/ui/Card'
 import { SkeletonStat, SkeletonTable } from '../../components/ui/Skeleton'
@@ -22,7 +20,6 @@ export default function BarberEarnings() {
     queryFn: () => api.get('/api/barbers/my').then(r => r.data),
   })
   const barberId = barberData?.barber?.id || barberData?.id
-  const barberPct = barberData?.barber?.barbershop?.config?.barberPercentage || barberData?.barbershop?.config?.barberPercentage || 60
 
   const { data: earningsData, isLoading } = useQuery({
     queryKey: ['barber-earnings', barberId, period],
@@ -35,28 +32,20 @@ export default function BarberEarnings() {
   // loyalty.routes.js solo expone /:shopId, /shop/:shopId/clients y /redeem, y
   // esta llamada tiene dos segmentos, así que no coincide con ninguna.
 
+  // El controlador envuelve la respuesta en { earnings }; el breakdown vive
+  // dentro de ese objeto, no al lado. Leerlo un nivel más arriba lo dejaba
+  // siempre vacío.
   const earnings = earningsData?.earnings || earningsData || {}
-  const breakdown = earningsData?.breakdown || []
+  const breakdown = earnings.breakdown || []
 
-  // Chart data based on period
-  const chartData = (() => {
-    if (period === 'today') {
-      return Array.from({ length: 12 }, (_, i) => ({
-        label: `${String(i + 8).padStart(2, '0')}h`,
-        ganancia: Math.floor(Math.random() * 30000),
-      }))
-    }
-    if (period === 'week') {
-      return Array.from({ length: 7 }, (_, i) => ({
-        label: format(subDays(new Date(), 6 - i), 'EEE', { locale: es }),
-        ganancia: Math.floor(Math.random() * 80000),
-      }))
-    }
-    return Array.from({ length: 4 }, (_, i) => ({
-      label: `Sem ${i + 1}`,
-      ganancia: Math.floor(Math.random() * 300000),
-    }))
-  })()
+  // La serie la calcula el backend a partir del MISMO rango que el total, así
+  // que las barras suman lo que dice la tarjeta de arriba. Antes esto era
+  // Math.floor(Math.random()): la gráfica mostraba dinero de semanas en las que
+  // no había ni una cita en la base.
+  const chartData = (earnings.daily || []).map(d => ({
+    label: d.day,
+    ganancia: d.barberEarnings,
+  }))
 
   return (
     <div className="space-y-6">
@@ -78,19 +67,30 @@ export default function BarberEarnings() {
       ) : (
         <div className="bg-primary rounded-2xl p-6 text-white">
           <p className="text-cream/70 text-sm font-medium">Mi ganancia — {PERIODS.find(p => p.key === period)?.label}</p>
-          <p className="text-4xl font-bold mt-2 font-heading">{formatCurrency(earnings.total || 0)}</p>
-          <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-white/20">
+          <p className="text-4xl font-bold mt-2 font-heading">{formatCurrency(earnings.totalEarned || 0)}</p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-4 pt-4 border-t border-white/20">
             <div>
-              <p className="text-cream/60 text-xs">Cortes realizados</p>
-              <p className="text-xl font-bold mt-0.5">{earnings.cuts || 0}</p>
+              <p className="text-cream/60 text-xs">Cortes completados</p>
+              <p className="text-xl font-bold mt-0.5">{earnings.cutsCount || 0}</p>
             </div>
             <div>
               <p className="text-cream/60 text-xs">Ticket promedio</p>
               <p className="text-xl font-bold mt-0.5">{formatCurrency(earnings.avgTicket || 0)}</p>
             </div>
             <div>
+              <p className="text-cream/60 text-xs">Tasa de éxito</p>
+              <p className="text-xl font-bold mt-0.5">
+                {earnings.successRate == null ? '—' : `${earnings.successRate}%`}
+              </p>
+              <p className="text-cream/60 text-xs mt-0.5">
+                {earnings.successRate == null
+                  ? 'Sin citas resueltas todavía'
+                  : `${earnings.cutsCount || 0} de ${earnings.resolvedCount || 0} citas resueltas`}
+              </p>
+            </div>
+            <div>
               <p className="text-cream/60 text-xs">Mi porcentaje</p>
-              <p className="text-xl font-bold mt-0.5 text-accent">{barberPct}%</p>
+              <p className="text-xl font-bold mt-0.5 text-accent">{earnings.barberPercentage ?? 0}%</p>
             </div>
           </div>
         </div>
@@ -111,7 +111,7 @@ export default function BarberEarnings() {
 
       {/* Breakdown table */}
       <Card title="Desglose de cortes">
-        {isLoading ? <SkeletonTable rows={5} cols={5} /> : breakdown.length === 0 ? (
+        {isLoading ? <SkeletonTable rows={5} cols={4} /> : breakdown.length === 0 ? (
           <div className="text-center py-8">
             <span className="text-3xl">✂️</span>
             <p className="mt-2 text-secondary text-sm">Sin cortes registrados en este período</p>
@@ -121,7 +121,7 @@ export default function BarberEarnings() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-soft">
-                  {['Fecha y hora', 'Cliente', 'Servicio', 'Precio', 'Mi ganancia'].map(h => (
+                  {['Fecha y hora', 'Cliente', 'Servicio', 'Mi ganancia'].map(h => (
                     <th key={h} className="text-left py-2 px-3 text-xs font-semibold text-secondary uppercase">{h}</th>
                   ))}
                 </tr>
@@ -134,9 +134,8 @@ export default function BarberEarnings() {
                       {item.startTime && <p>{formatTime(item.startTime)}</p>}
                     </td>
                     <td className="py-2.5 px-3 font-medium">{item.clientName || '—'}</td>
-                    <td className="py-2.5 px-3">{item.serviceName || '—'}</td>
-                    <td className="py-2.5 px-3 text-secondary">{formatCurrency(item.price || 0)}</td>
-                    <td className="py-2.5 px-3 font-semibold text-accent">{formatCurrency(item.barberEarning || (item.price * barberPct / 100) || 0)}</td>
+                    <td className="py-2.5 px-3">{item.service || '—'}</td>
+                    <td className="py-2.5 px-3 font-semibold text-accent">{formatCurrency(item.amount || 0)}</td>
                   </tr>
                 ))}
               </tbody>
