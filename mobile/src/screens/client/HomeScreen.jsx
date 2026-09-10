@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
   FlatList, RefreshControl, Dimensions, Animated, StatusBar, Image,
+  ActivityIndicator,
 } from 'react-native'
 import { useQuery } from '@tanstack/react-query'
 import * as Location from 'expo-location'
@@ -10,6 +11,7 @@ import api from '../../api/axios'
 import useAuthStore from '../../store/authStore'
 import BarbershopCard from '../../components/barbershop/BarbershopCard'
 import CitySelectorModal from '../../components/ui/CitySelectorModal'
+import EmptyState from '../../components/ui/EmptyState'
 import { colors, fontSize, spacing, radius, shadows } from '../../constants/theme'
 import { getGreeting, getGreetingEmoji } from '../../utils/formatters'
 
@@ -90,7 +92,12 @@ export default function HomeScreen({ navigation }) {
     },
   })
 
-  const { data: searchData } = useQuery({
+  const {
+    data: searchData,
+    isFetching: searchLoading,
+    isError: searchFailed,
+    refetch: retrySearch,
+  } = useQuery({
     queryKey: ['search', search],
     queryFn: () => api.get(`/api/search?q=${encodeURIComponent(search)}`).then(r => r.data),
     enabled: search.length >= 2,
@@ -134,10 +141,6 @@ export default function HomeScreen({ navigation }) {
             </TouchableOpacity>
           </View>
           <View style={styles.headerRight}>
-            <TouchableOpacity style={styles.bellBtn}>
-              <Text style={styles.bellIcon}>🔔</Text>
-              <View style={styles.notifBadge} />
-            </TouchableOpacity>
             <TouchableOpacity style={styles.avatar}>
               {user?.avatar
                 ? <Image source={{ uri: user.avatar }} style={styles.avatarImg} />
@@ -181,16 +184,37 @@ export default function HomeScreen({ navigation }) {
           </View>
         )}
 
-        {/* Search results */}
-        {search.length >= 2 && searchResults.length > 0 && (
-          <View style={styles.searchResults}>
-            {searchResults.slice(0, 5).map(s => (
-              <TouchableOpacity key={s.id} style={styles.searchResultItem} onPress={() => { setSearch(''); goToShop(s) }}>
-                <Text style={styles.searchResultName}>{s.name}</Text>
-                <Text style={styles.searchResultCity}>{s.city}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+        {/* Resultados de la búsqueda. Antes solo se pintaba la lista cuando
+            tenía filas, así que una búsqueda sin resultados se veía igual que un
+            buscador muerto: sin carga, sin vacío y sin error. */}
+        {search.length >= 2 && (
+          searchLoading ? (
+            <View style={styles.searchStatus}>
+              <ActivityIndicator color={colors.accent} />
+              <Text style={styles.searchStatusText}>Buscando barberías...</Text>
+            </View>
+          ) : searchFailed ? (
+            <EmptyState
+              title="No pudimos buscar"
+              subtitle="Revisa tu conexión e intenta de nuevo."
+              actionLabel="Reintentar"
+              onAction={retrySearch}
+            />
+          ) : searchResults.length === 0 ? (
+            <EmptyState
+              title="Sin resultados"
+              subtitle={`No encontramos barberías que coincidan con “${search}”.`}
+            />
+          ) : (
+            <View style={styles.searchResults}>
+              {searchResults.slice(0, 5).map(s => (
+                <TouchableOpacity key={s.id} style={styles.searchResultItem} onPress={() => { setSearch(''); goToShop(s) }}>
+                  <Text style={styles.searchResultName}>{s.name}</Text>
+                  <Text style={styles.searchResultCity}>{s.city}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )
         )}
 
         {/* Ads carousel */}
@@ -359,14 +383,6 @@ const styles = StyleSheet.create({
   tempCityText: { flex: 1, fontSize: fontSize.xs, color: colors.secondary },
   tempCityAction: { fontSize: fontSize.xs, fontWeight: '700', color: colors.accent },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  bellBtn: { position: 'relative', padding: spacing.xs },
-  bellIcon: { fontSize: 22 },
-  notifBadge: {
-    position: 'absolute', top: 6, right: 6,
-    width: 8, height: 8, borderRadius: 4,
-    backgroundColor: '#EF4444',
-    borderWidth: 1, borderColor: colors.primary,
-  },
   avatar: {
     width: 38, height: 38, borderRadius: 19,
     backgroundColor: colors.accent,
@@ -384,6 +400,11 @@ const styles = StyleSheet.create({
   searchIcon: { fontSize: 14, marginRight: spacing.sm },
   searchInput: { flex: 1, fontSize: fontSize.sm, color: colors.white },
   clearSearch: { fontSize: 14, color: colors.white + '80', padding: spacing.xs },
+  searchStatus: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: spacing.sm, paddingVertical: spacing.lg,
+  },
+  searchStatusText: { fontSize: fontSize.sm, color: colors.secondary },
   searchResults: {
     marginHorizontal: spacing.lg,
     backgroundColor: colors.white,
