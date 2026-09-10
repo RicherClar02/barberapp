@@ -113,8 +113,8 @@ export default function BarbershopDetail({ route, navigation }) {
         {/* Info */}
         <View style={styles.infoSection}>
           <View style={styles.ratingRow}>
-            <View style={styles.starsRow}>{stars(shop.rating)}</View>
-            <Text style={styles.ratingNum}>{(shop.rating || 0).toFixed(1)}</Text>
+            <View style={styles.starsRow}>{stars(shop.avgRating)}</View>
+            <Text style={styles.ratingNum}>{(shop.avgRating || 0).toFixed(1)}</Text>
             <Text style={styles.reviewCount}>({reviews.length} reseñas)</Text>
           </View>
 
@@ -175,17 +175,17 @@ export default function BarbershopDetail({ route, navigation }) {
                 <View style={styles.barbersGrid}>
                   {barbers.map(b => (
                     <View key={b.id} style={styles.barberCard}>
-                      {b.avatar
-                        ? <Image source={{ uri: b.avatar }} style={styles.barberAvatar} />
+                      {b.user?.avatar
+                        ? <Image source={{ uri: b.user.avatar }} style={styles.barberAvatar} />
                         : (
                           <View style={[styles.barberAvatar, styles.barberAvatarFallback]}>
                             <Text style={{ fontSize: 28 }}>✂️</Text>
                           </View>
                         )
                       }
-                      <Text style={styles.barberName} numberOfLines={1}>{b.name}</Text>
+                      <Text style={styles.barberName} numberOfLines={1}>{b.user?.name}</Text>
                       <Text style={styles.barberSub} numberOfLines={1}>{b.specialty || 'Barbero'}</Text>
-                      <Text style={styles.barberRating}>⭐ {(b.rating || 0).toFixed(1)}</Text>
+                      <Text style={styles.barberRating}>⭐ {(b.avgRating || 0).toFixed(1)}</Text>
                     </View>
                   ))}
                 </View>
@@ -209,8 +209,8 @@ export default function BarbershopDetail({ route, navigation }) {
           {activeTab === 3 && (
             <View>
               <View style={styles.ratingBig}>
-                <Text style={styles.ratingBigNum}>{(shop.rating || 0).toFixed(1)}</Text>
-                <View style={{ flexDirection: 'row', gap: 4 }}>{stars(shop.rating)}</View>
+                <Text style={styles.ratingBigNum}>{(shop.avgRating || 0).toFixed(1)}</Text>
+                <View style={{ flexDirection: 'row', gap: 4 }}>{stars(shop.avgRating)}</View>
                 <Text style={styles.ratingBigSub}>{reviews.length} reseñas</Text>
               </View>
               {reviews.length > 0 && (
