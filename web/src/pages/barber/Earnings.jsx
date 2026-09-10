@@ -30,15 +30,13 @@ export default function BarberEarnings() {
     enabled: !!barberId,
   })
 
-  const { data: loyaltyData } = useQuery({
-    queryKey: ['barber-loyalty', barberId],
-    queryFn: () => api.get(`/api/loyalty/barber/${barberId}`).then(r => r.data),
-    enabled: !!barberId,
-  })
+  // El resumen de fidelización queda oculto hasta que exista la ruta que lo
+  // alimenta: GET /api/loyalty/barber/:barberId no está montada en el backend.
+  // loyalty.routes.js solo expone /:shopId, /shop/:shopId/clients y /redeem, y
+  // esta llamada tiene dos segmentos, así que no coincide con ninguna.
 
   const earnings = earningsData?.earnings || earningsData || {}
   const breakdown = earningsData?.breakdown || []
-  const loyal = loyaltyData?.clients || []
 
   // Chart data based on period
   const chartData = (() => {
@@ -147,29 +145,6 @@ export default function BarberEarnings() {
         )}
       </Card>
 
-      {/* Loyalty summary */}
-      {loyal.length > 0 && (
-        <Card title="Clientes cerca del corte gratis">
-          <div className="space-y-2">
-            {loyal.map(c => (
-              <div key={c.clientId} className="flex items-center justify-between p-3 bg-cream rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-white text-sm font-bold">
-                    {c.clientName?.[0]?.toUpperCase() || '?'}
-                  </div>
-                  <div>
-                    <p className="font-medium text-sm">{c.clientName}</p>
-                    <p className="text-xs text-secondary">{c.visits} cortes acumulados</p>
-                  </div>
-                </div>
-                <span className="text-xs font-semibold text-accent bg-accent/10 px-2 py-1 rounded-full">
-                  Faltan {c.remaining} para gratis
-                </span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
     </div>
   )
 }
