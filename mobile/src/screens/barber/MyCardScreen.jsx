@@ -15,14 +15,29 @@ export default function MyCardScreen() {
   const [editOpen, setEditOpen] = useState(false)
   const [form, setForm] = useState({ specialty: '', bio: '' })
 
+  // Dos identificadores distintos, igual que en web/src/pages/barber/MyCard.jsx:
+  // /api/barbers/card/:userId espera el id de USUARIO, y la subida de avatar
+  // /api/upload/barber-avatar/:barberId el id del PERFIL de barbero.
+  // Confundirlos devuelve 404.
+  const { data: barberData } = useQuery({
+    queryKey: ['my-barber-profile'],
+    queryFn: () => api.get('/api/barbers/my').then(r => r.data),
+    enabled: !!user?.id,
+  })
+  const barberId = barberData?.barber?.id || barberData?.id
+
   const { data } = useQuery({
     queryKey: ['barber-card', user?.id],
     queryFn: () => api.get(`/api/barbers/card/${user?.id}`).then(r => r.data),
     enabled: !!user?.id,
-    onSuccess: d => setForm({ specialty: d?.specialty || '', bio: d?.bio || '' }),
+    onSuccess: d => setForm({ specialty: d?.barber?.specialty || '', bio: d?.barber?.bio || '' }),
   })
 
-  const card = data?.barber || data || {}
+  // La respuesta es { barber, today, upcomingAppointments, recentReviews }:
+  // solo el perfil vive dentro de `barber`, el resto son hermanos.
+  const card = data?.barber || {}
+  const today = data?.today || {}
+  const recentReviews = data?.recentReviews || []
 
   const updateMutation = useMutation({
     mutationFn: (payload) => api.put(`/api/barbers/${user?.id}`, payload),
@@ -34,14 +49,14 @@ export default function MyCardScreen() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
     if (status !== 'granted') return
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true, aspect: [1, 1], quality: 0.8,
     })
     if (!result.canceled && result.assets?.[0]) {
       const fd = new FormData()
-      fd.append('avatar', { uri: result.assets[0].uri, type: 'image/jpeg', name: 'avatar.jpg' })
+      fd.append('file', { uri: result.assets[0].uri, type: 'image/jpeg', name: 'avatar.jpg' })
       try {
-        const res = await api.post(`/api/upload/barber-avatar/${user?.id}`, fd, {
+        const res = await api.post(`/api/upload/barber-avatar/${barberId}`, fd, {
           headers: { 'Content-Type': 'multipart/form-data' },
         })
         await updateUser({ avatar: res.data.url })
@@ -93,9 +108,9 @@ export default function MyCardScreen() {
           <Text style={styles.cardName}>{name}</Text>
           <Text style={styles.cardSpecialty}>{card.specialty || 'Barbero Profesional'}</Text>
           <View style={styles.starsRow}>{stars(card.rating)}</View>
-          <Text style={styles.ratingText}>({card.reviewCount || 0} reseñas)</Text>
-          {card.barbershop?.name && (
-            <Text style={styles.cardShop}>{card.barbershop.name}</Text>
+          <Text style={styles.ratingText}>({card.totalReviews || 0} reseñas)</Text>
+          {card.barbershopName && (
+            <Text style={styles.cardShop}>{card.barbershopName}</Text>
           )}
 
           {/* Gold divider */}
@@ -104,17 +119,17 @@ export default function MyCardScreen() {
           {/* Stats */}
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
-              <Text style={styles.statNum}>{card.today?.total || 0}</Text>
+              <Text style={styles.statNum}>{today.totalCuts || 0}</Text>
               <Text style={styles.statLabel}>Cortes hoy</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text style={styles.statNum}>{card.today?.earnings ? `$${Math.floor(card.today.earnings / 1000)}k` : '$0'}</Text>
+              <Text style={styles.statNum}>{today.earningsToday ? `$${Math.floor(today.earningsToday / 1000)}k` : '$0'}</Text>
               <Text style={styles.statLabel}>Ganado hoy</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text style={styles.statNum}>{card.nextAppointment ? card.nextAppointment : '—'}</Text>
+              <Text style={styles.statNum}>{today.nextAppointment?.startTime || '—'}</Text>
               <Text style={styles.statLabel}>Próxima</Text>
             </View>
           </View>
@@ -133,17 +148,17 @@ export default function MyCardScreen() {
         </TouchableOpacity>
 
         {/* Last reviews */}
-        {card.reviews?.length > 0 && (
+        {recentReviews.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Últimas reseñas</Text>
-            {card.reviews.slice(0, 3).map((r, i) => (
+            {recentReviews.slice(0, 3).map((r, i) => (
               <View key={r.id || i} style={styles.reviewCard}>
                 <View style={styles.reviewHeader}>
                   <View style={styles.reviewAvatar}>
-                    <Text style={styles.reviewAvatarText}>{r.client?.name?.[0]?.toUpperCase() || '?'}</Text>
+                    <Text style={styles.reviewAvatarText}>{r.clientName?.[0]?.toUpperCase() || '?'}</Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.reviewName}>{r.client?.name || 'Cliente'}</Text>
+                    <Text style={styles.reviewName}>{r.clientName || 'Cliente'}</Text>
                     <View style={styles.reviewStars}>
                       {Array.from({ length: 5 }).map((_, j) => (
                         <Text key={j} style={{ fontSize: 12, color: j < r.rating ? colors.accent : colors.graySoft }}>★</Text>
@@ -157,20 +172,9 @@ export default function MyCardScreen() {
           </View>
         )}
 
-        {/* Services */}
-        {card.services?.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Mis servicios</Text>
-            {card.services.map(s => (
-              <View key={s.id} style={styles.serviceRow}>
-                <Text style={styles.serviceName}>{s.name}</Text>
-                <Text style={styles.servicePrice}>
-                  {s.price ? `$${Number(s.price).toLocaleString('es-CO')}` : ''}
-                </Text>
-              </View>
-            ))}
-          </View>
-        )}
+        {/* La sección "Mis servicios" queda oculta: /api/barbers/card/:userId
+            devuelve { barber, today, upcomingAppointments, recentReviews } y no
+            trae servicios por barbero. No hay ruta que los dé hoy. */}
 
         <View style={{ height: spacing.xxl }} />
       </ScrollView>
