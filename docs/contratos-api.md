@@ -21,6 +21,24 @@ llegó al móvil. Cuando haya que arreglar algo del móvil, el patrón se copia 
 | Secciones sobre rutas inexistentes | Ocultadas en el cliente; **falta backend** |
 | `PUT /api/barbers/:id` desde el móvil | **Bloqueado, necesita decisión de backend** |
 
+## Pendiente que abrió el backend: el estado `EXPIRED`
+
+`AppointmentStatus` ya incluye `EXPIRED` (`backend/prisma/schema.prisma:243`). **Los
+dos frontends todavía no lo conocen**, así que una cita vencida se ve rota o
+desaparece. Falta, y no se hizo en esta tanda:
+
+- `web/src/components/ui/Badge.jsx` → entrada `EXPIRED` en `STATUS_MAP`, etiqueta
+  «Vencida». Sin ella el badge imprime el literal `EXPIRED` en gris.
+- `web/src/utils/formatters.js` → `getStatusColor()` y el mapa de etiquetas.
+- `web/src/pages/owner/Agenda.jsx` → `<option>` del filtro y mapa de tinte de fila.
+- `web/src/pages/barber/Agenda.jsx` → mapa de tinte de fila.
+- `web/src/pages/barber/Appointments.jsx` → la pestaña «Próximas» filtra
+  `PENDING,CONFIRMED,IN_PROGRESS`; las vencidas desaparecen de todas las pestañas.
+- Los botones de acción condicionados a `status === 'PENDING'` deben mostrarse también
+  en `EXPIRED`, o el barbero se queda sin forma de resolver una cita vencida.
+- Móvil: `mobile/src/constants/theme.js` (`STATUS_COLORS`) y
+  `mobile/src/utils/formatters.js`.
+
 ---
 
 ## 1. Pendiente de backend
@@ -51,13 +69,12 @@ Detalle de cada una:
 - **`/api/loyalty/barber/:id`** — son dos segmentos y la ruta comodín es de uno solo,
   así que no hay coincidencia posible.
 
-### 1.2 `POST /api/upload/user-avatar/:userId` no existe
+### 1.2 `POST /api/upload/user-avatar/:userId` — **resuelto**
 
-`mobile/src/screens/client/ProfileScreen.jsx:79` sube ahí la foto de perfil del
-cliente. `backend/src/routes/upload.routes.js` solo tiene `barbershop-logo`,
-`barbershop-photo` (POST y DELETE), `barber-avatar`, `service-image` y `ad-media`.
-Ninguna sirve para el avatar de un cliente: `barber-avatar` pasa por
-`requireBarberSelf`, que un CLIENT nunca satisface.
+`mobile/src/screens/client/ProfileScreen.jsx` subía ahí la foto de perfil del cliente
+y la ruta no existía. Ya está: `backend/src/routes/upload.routes.js:179` la monta con
+`uploadAvatar.single('file')`, que coincide con el campo que ahora manda el móvil.
+La foto de perfil del cliente funciona de punta a punta.
 
 ### 1.3 `PUT /api/barbers/:id` es `requireRole('OWNER')`
 
