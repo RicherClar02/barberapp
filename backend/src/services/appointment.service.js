@@ -8,6 +8,8 @@ const {
   filterPastSlots,
   isPastDateTime,
   nowInShopTimezone,
+  shopUtcOffsetMs,
+  shopTodayUtcMidnight,
   SHOP_TIMEZONE,
 } = require('./shared/slots.service')
 
@@ -390,8 +392,12 @@ const completeAppointment = async (id, userId, userRole) => {
   })
 
   if (!appointment) throw new Error('Cita no encontrada')
-  if (!['CONFIRMED', 'IN_PROGRESS'].includes(appointment.status)) {
-    throw new Error('Solo se pueden completar citas confirmadas o en progreso')
+  // EXPIRED entra acá a propósito: el barrido la marca vencida justamente para
+  // que el barbero decida después si se atendió o si el cliente no llegó. Si no
+  // estuviera en esta lista, marcarla vencida le quitaría el botón y rompería
+  // la regla que el estado existe para sostener.
+  if (!['CONFIRMED', 'IN_PROGRESS', 'EXPIRED'].includes(appointment.status)) {
+    throw new Error('Solo se pueden completar citas confirmadas, en progreso o vencidas')
   }
 
   await verifyShopPermission(appointment, userId, userRole)
@@ -416,8 +422,10 @@ const noShowAppointment = async (id, userId, userRole) => {
   })
 
   if (!appointment) throw new Error('Cita no encontrada')
-  if (!['CONFIRMED', 'PENDING'].includes(appointment.status)) {
-    throw new Error('Solo se pueden marcar como no-show citas pendientes o confirmadas')
+  // Igual que en completeAppointment: una cita vencida es exactamente el caso
+  // en que el barbero todavía tiene que decir si el cliente se presentó.
+  if (!['CONFIRMED', 'PENDING', 'EXPIRED'].includes(appointment.status)) {
+    throw new Error('Solo se pueden marcar como no-show citas pendientes, confirmadas o vencidas')
   }
 
   // Verificar tolerancia de 10 minutos
@@ -539,6 +547,69 @@ const rescheduleAppointment = async (id, { newDate, newStartTime, reason }, user
   return updated
 }
 
+// ── VENCIMIENTO DE CITAS ───────────────────────────────────────────────
+// Una cita a la que se le pasó la hora y nadie cerró se quedaba en PENDING para
+// siempre: seguía bloqueando el cupo, seguía apareciendo en "pendientes de hoy"
+// y no había forma de distinguirla de una cita real de mañana. EXPIRED es el
+// estado neutro que lo resuelve sin culpar al cliente ni inventar ingresos.
+
+// Gracia por estado, en horas.
+// PENDING/CONFIRMED: 2 horas, para que un barbero ocupado alcance a cerrar las
+// citas del rato anterior antes de que se le venzan.
+// IN_PROGRESS: 12 horas. Vencer una cita a mitad del corte sería peor que
+// dejarla, pero una que quedó abierta desde ayer está abandonada.
+const EXPIRY_GRACE_HOURS = {
+  PENDING: 2,
+  CONFIRMED: 2,
+  IN_PROGRESS: 12,
+}
+
+// El instante real en que terminó la cita. date se guarda como medianoche UTC y
+// endTime es hora de pared de la barbería: hay que convertir con el offset de la
+// zona, no leer en UTC. Colombia es UTC-5, así que calcularlo en UTC vencería
+// las citas cinco horas antes de tiempo — es la trampa más fácil de pisar acá.
+const appointmentEndInstant = (appointment, timeZone = SHOP_TIMEZONE) => {
+  const [y, m, d] = new Date(appointment.date).toISOString().slice(0, 10).split('-').map(Number)
+  const [hh, mm] = String(appointment.endTime).split(':').map(Number)
+  const asIfUtc = Date.UTC(y, m - 1, d, hh, mm, 0, 0)
+  return new Date(asIfUtc - shopUtcOffsetMs(new Date(asIfUtc), timeZone))
+}
+
+// Decide, sin tocar la base, si una cita ya venció. Separado del barrido para
+// poder probarlo con relojes fijos.
+const isAppointmentExpired = (appointment, now = new Date(), timeZone = SHOP_TIMEZONE) => {
+  const graceHours = EXPIRY_GRACE_HOURS[appointment.status]
+  if (graceHours == null) return false
+  if (!appointment.endTime) return false
+  const deadline = appointmentEndInstant(appointment, timeZone).getTime() + graceHours * 60 * 60 * 1000
+  return now.getTime() > deadline
+}
+
+// Barrido horario. Se acota primero por fecha —nunca puede vencer una cita de
+// mañana— y recién sobre ese conjunto acotado se aplica la gracia exacta.
+const expireStaleAppointments = async (now = new Date(), timeZone = SHOP_TIMEZONE) => {
+  // El corte por día usa el hoy de la barbería, no el del proceso. Se toma el
+  // día de hoy completo porque una cita de esta mañana ya puede haber vencido.
+  const hoy = shopTodayUtcMidnight(now, timeZone)
+
+  const candidatas = await prisma.appointment.findMany({
+    where: {
+      status: { in: Object.keys(EXPIRY_GRACE_HOURS) },
+      date: { lte: hoy },
+    },
+    select: { id: true, date: true, endTime: true, status: true },
+  })
+
+  const vencidas = candidatas.filter(a => isAppointmentExpired(a, now, timeZone))
+  if (vencidas.length === 0) return 0
+
+  const { count } = await prisma.appointment.updateMany({
+    where: { id: { in: vencidas.map(a => a.id) } },
+    data: { status: 'EXPIRED' },
+  })
+  return count
+}
+
 // Verifica que el usuario sea dueño o barbero de la barbería de la cita
 const verifyShopPermission = async (appointment, userId, userRole) => {
   if (userRole === 'OWNER') {
@@ -560,5 +631,9 @@ module.exports = {
   cancelAppointment,
   completeAppointment,
   noShowAppointment,
-  rescheduleAppointment
+  rescheduleAppointment,
+  expireStaleAppointments,
+  isAppointmentExpired,
+  appointmentEndInstant,
+  EXPIRY_GRACE_HOURS
 }

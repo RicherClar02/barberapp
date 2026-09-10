@@ -235,6 +235,12 @@ enum AppointmentStatus {
   COMPLETED
   CANCELLED
   NO_SHOW
+  // Se le pasó la hora y nadie la cerró. Estado NEUTRO, escrito por el barrido
+  // horario: no culpa al cliente (eso es NO_SHOW, que notifica y entra en la
+  // tasa de ausentismo) ni inventa ingresos (eso es COMPLETED). Solo el barbero
+  // decide cuál de los dos fue, y para eso completeAppointment y
+  // noShowAppointment aceptan EXPIRED como estado de partida.
+  EXPIRED
 }
 
 // ─── PAGOS ──────────────────────────────────────────────

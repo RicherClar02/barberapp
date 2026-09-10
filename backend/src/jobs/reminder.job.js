@@ -4,6 +4,7 @@ const { sendAppointmentReminder } = require('../services/notification.service')
 const { expireStaleNotifications } = require('../services/waitlist.service')
 const { checkExpiredSubscriptions } = require('../services/subscription.service')
 const { purgeOldDrafts } = require('../services/chatbot.service')
+const { expireStaleAppointments } = require('../services/appointment.service')
 
 const toHHMM = (date) => {
   return `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`
@@ -76,6 +77,19 @@ const startReminderJob = () => {
     }
   })
   console.log('[Waitlist] Cron job de expiración iniciado (cada 5 minutos)')
+
+  // Cada hora: marcar como vencidas las citas a las que se les pasó la hora y
+  // nadie cerró. Estado neutro: no decide si el cliente vino o no — eso lo
+  // sigue decidiendo el barbero, que conserva ambos botones sobre una vencida.
+  cron.schedule('0 * * * *', async () => {
+    try {
+      const vencidas = await expireStaleAppointments()
+      if (vencidas > 0) console.log(`[Appointments] ${vencidas} cita(s) marcadas como vencidas`)
+    } catch (error) {
+      console.error('[Appointments] Error en cron de vencimiento de citas:', error.message)
+    }
+  })
+  console.log('[Appointments] Cron job de vencimiento de citas iniciado (cada hora)')
 
   // Diariamente a medianoche: verificar suscripciones vencidas
   cron.schedule('0 0 * * *', async () => {
