@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import { DollarSign } from 'lucide-react'
 import api from '../../api/axios'
 import Card from '../../components/ui/Card'
 import { SkeletonStat, SkeletonTable } from '../../components/ui/Skeleton'
@@ -96,17 +97,27 @@ export default function BarberEarnings() {
         </div>
       )}
 
-      {/* Chart */}
+      {/* Chart. Sin serie no se dibuja un eje vacío: en una pantalla de plata,
+          una gráfica en blanco se lee como «gané cero» y no como «no hay datos». */}
       <Card title="Ganancias por período">
-        <ResponsiveContainer width="100%" height={200}>
-          <BarChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#E8E0D8" />
-            <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#8B5E3C' }} />
-            <YAxis tick={{ fontSize: 11, fill: '#8B5E3C' }} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
-            <Tooltip formatter={(v) => [formatCurrency(v), 'Ganancia']} />
-            <Bar dataKey="ganancia" fill="#C49A6C" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
+        {chartData.length === 0 ? (
+          <div className="text-center py-8">
+            <DollarSign size={48} className="mx-auto text-muted" />
+            <p className="mt-2 text-secondary text-sm">
+              Aún no hay ganancias registradas en este período
+            </p>
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#E8E0D8" />
+              <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#8B5E3C' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#8B5E3C' }} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
+              <Tooltip formatter={(v) => [formatCurrency(v), 'Ganancia']} />
+              <Bar dataKey="ganancia" fill="#C49A6C" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </Card>
 
       {/* Breakdown table */}
