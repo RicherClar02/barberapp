@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query'
 import api from '../../api/axios'
 import useAuthStore from '../../store/authStore'
 import { colors, fontSize, spacing, radius, shadows } from '../../constants/theme'
-import { formatCurrency, formatDateShort } from '../../utils/formatters'
+import { formatCurrency } from '../../utils/formatters'
 
 const PERIODS = [
   { key: 'today', label: 'Hoy' },
@@ -20,31 +20,36 @@ export default function EarningsScreen() {
   const [period, setPeriod] = useState('today')
   const [refreshing, setRefreshing] = useState(false)
 
+  // /api/earnings/barber/:barberId espera el id del PERFIL de barbero, no el
+  // del usuario. Se resuelve con /api/barbers/my, igual que en
+  // web/src/pages/barber/Earnings.jsx.
+  const { data: barberData } = useQuery({
+    queryKey: ['my-barber-profile'],
+    queryFn: () => api.get('/api/barbers/my').then(r => r.data),
+    enabled: !!user?.id,
+  })
+  const barberId = barberData?.barber?.id || barberData?.id
+
   const { data: statsData, refetch: refetchStats } = useQuery({
-    queryKey: ['barber-earnings', user?.id, period],
+    queryKey: ['barber-earnings', barberId, period],
     queryFn: () =>
-      api.get(`/api/earnings/barber/${user?.id}?period=${period}`).then(r => r.data),
-    enabled: !!user?.id,
+      api.get(`/api/earnings/barber/${barberId}?period=${period}`).then(r => r.data),
+    enabled: !!barberId,
   })
 
-  const { data: txData, refetch: refetchTx } = useQuery({
-    queryKey: ['barber-transactions', user?.id],
-    queryFn: () =>
-      api.get(`/api/payments/barber/${user?.id}?limit=20`).then(r => r.data),
-    enabled: !!user?.id,
-  })
+  // El controlador envuelve la respuesta en { earnings: {...} }.
+  const stats = statsData?.earnings || {}
 
-  const stats = statsData?.stats || statsData || {}
-  const transactions = txData?.payments || txData || []
+  // Las secciones de transacciones quedan ocultas hasta que exista la ruta que
+  // las alimenta: GET /api/payments/barber/:id no está montada en el backend.
+  // payment.routes.js expone cash, appointment, shop, summary, refund, stripe y
+  // epayco, pero ninguna por barbero. Una sección vacía se lee como rota.
 
   const onRefresh = async () => {
     setRefreshing(true)
-    await Promise.all([refetchStats(), refetchTx()])
+    await refetchStats()
     setRefreshing(false)
   }
-
-  // Simple bar chart data
-  const maxVal = Math.max(...transactions.slice(0, 7).map(t => t.amount || 0), 1)
 
   return (
     <View style={styles.container}>
@@ -78,64 +83,14 @@ export default function EarningsScreen() {
         {/* Main card */}
         <View style={styles.mainCard}>
           <Text style={styles.mainCardAmount}>
-            {formatCurrency(stats.barberEarnings || stats.totalEarnings || 0)}
+            {formatCurrency(stats.totalEarned || 0)}
           </Text>
           <Text style={styles.mainCardPct}>
-            Mi porcentaje configurado: {stats.barberPct || 0}%
+            Mi porcentaje configurado: {stats.barberPercentage || 0}%
           </Text>
           <Text style={styles.mainCardSub}>
-            {stats.completedCuts || stats.cuts || 0} cortes · Ticket promedio: {formatCurrency(stats.avgTicket || 0)}
+            {stats.cutsCount || 0} cortes
           </Text>
-        </View>
-
-        {/* Bar chart - simple */}
-        {transactions.length > 0 && (
-          <View style={styles.chartCard}>
-            <Text style={styles.chartTitle}>Últimas transacciones</Text>
-            <View style={styles.bars}>
-              {transactions.slice(0, 7).reverse().map((tx, i) => {
-                const barH = Math.max(8, ((tx.amount || 0) / maxVal) * 80)
-                return (
-                  <View key={tx.id || i} style={styles.barWrapper}>
-                    <View style={[styles.bar, { height: barH }]} />
-                    <Text style={styles.barLabel} numberOfLines={1}>
-                      {formatDateShort ? formatDateShort(tx.createdAt)?.slice(0, 3) : ''}
-                    </Text>
-                  </View>
-                )
-              })}
-            </View>
-          </View>
-        )}
-
-        {/* Cuts list */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            {period === 'today' ? 'Cortes de hoy' : period === 'week' ? 'Cortes esta semana' : 'Cortes este mes'}
-          </Text>
-          {transactions.length === 0 ? (
-            <View style={styles.emptyBox}>
-              <Text style={styles.emptyText}>No hay transacciones aún</Text>
-            </View>
-          ) : (
-            transactions.map(tx => (
-              <View key={tx.id} style={styles.txCard}>
-                <View style={styles.txLeft}>
-                  <View style={styles.txDot} />
-                  <View>
-                    <Text style={styles.txClient}>{tx.appointment?.client?.name || 'Cliente'}</Text>
-                    <Text style={styles.txService}>{tx.appointment?.service?.name}</Text>
-                  </View>
-                </View>
-                <View style={styles.txRight}>
-                  <Text style={styles.txAmount}>{formatCurrency(tx.amount)}</Text>
-                  <Text style={styles.txEarning}>
-                    Mi ganancia: {formatCurrency((tx.amount || 0) * (stats.barberPct || 60) / 100)}
-                  </Text>
-                </View>
-              </View>
-            ))
-          )}
         </View>
 
         <View style={{ height: spacing.xxl }} />
