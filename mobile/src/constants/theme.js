@@ -121,4 +121,6 @@ export const STATUS_COLORS = {
   COMPLETED: { bg: '#DCFCE7', text: '#166534' },
   CANCELLED: { bg: '#FEE2E2', text: '#991B1B' },
   NO_SHOW: { bg: '#F3F4F6', text: '#6B7280' },
+  // Vencida no es un error: token warning, no destructive.
+  EXPIRED: { bg: '#F0DFD0', text: '#A65E2E' },
 }

@@ -56,6 +56,7 @@ export const getStatusColor = (status) => {
     CANCELLED: 'bg-red-100 text-red-800',
     CANCELLED_BARBERSHOP: 'bg-red-100 text-red-800',
     NO_SHOW: 'bg-gray-100 text-gray-600',
+    EXPIRED: 'bg-warning-bg text-warning',
   }
   return colors[status] || 'bg-gray-100 text-gray-600'
 }
@@ -69,6 +70,7 @@ export const getStatusLabel = (status) => {
     CANCELLED: 'Cancelada',
     CANCELLED_BARBERSHOP: 'Cancelada',
     NO_SHOW: 'No se presentó',
+    EXPIRED: 'Vencida',
   }
   return labels[status] || status
 }

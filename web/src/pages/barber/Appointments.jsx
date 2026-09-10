@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import toast from 'react-hot-toast'
 import api from '../../api/axios'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
@@ -8,13 +9,18 @@ import Modal from '../../components/ui/Modal'
 import { SkeletonTable } from '../../components/ui/Skeleton'
 import { formatCurrency, formatDate, formatTime } from '../../utils/formatters'
 
+// EXPIRED tiene pestaña propia a propósito. No va en Próximas, porque ya pasó, ni
+// en Completadas ni Canceladas, porque nadie decidió todavía qué pasó: son las citas
+// a las que se les fue la hora y esperan que el barbero las cierre.
 const TABS = [
   { key: 'upcoming', label: 'Próximas', statuses: 'PENDING,CONFIRMED,IN_PROGRESS' },
+  { key: 'toclose', label: 'Por cerrar', statuses: 'EXPIRED' },
   { key: 'completed', label: 'Completadas', statuses: 'COMPLETED' },
   { key: 'cancelled', label: 'Canceladas', statuses: 'CANCELLED,NO_SHOW' },
 ]
 
 export default function BarberAppointments() {
+  const qc = useQueryClient()
   const [tab, setTab] = useState('upcoming')
   const [fromDate, setFromDate] = useState('')
   const [search, setSearch] = useState('')
@@ -63,6 +69,17 @@ export default function BarberAppointments() {
   const total = filtered.length
   const appointments = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const stats = statsData?.earnings || {}
+
+  // Mismo camino que usa barber/Agenda.jsx para cerrar una cita.
+  const { mutate: doAction, isPending: actioning } = useMutation({
+    mutationFn: ({ id, action }) => api.put(`/api/appointments/${id}/${action}`),
+    onSuccess: () => {
+      toast.success('Cita actualizada')
+      qc.invalidateQueries({ queryKey: ['barber-appointments', barberUserId] })
+      qc.invalidateQueries({ queryKey: ['barber-appt-stats', barberId] })
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Error'),
+  })
 
   return (
     <div className="space-y-6">
@@ -139,7 +156,18 @@ export default function BarberAppointments() {
                       </td>
                       <td className="py-2.5 px-3"><Badge status={a.status} /></td>
                       <td className="py-2.5 px-3">
-                        <Button size="sm" variant="outline" onClick={() => setDetail(a)}>Ver</Button>
+                        {a.status === 'EXPIRED' ? (
+                          <div className="flex gap-2">
+                            <Button size="sm" onClick={() => doAction({ id: a.id, action: 'complete' })} loading={actioning}>
+                              Se completó
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => doAction({ id: a.id, action: 'no-show' })} loading={actioning}>
+                              No llegó
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button size="sm" variant="outline" onClick={() => setDetail(a)}>Ver</Button>
+                        )}
                       </td>
                     </tr>
                   ))}

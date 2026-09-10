@@ -46,7 +46,11 @@ export default function MyAppointments({ navigation }) {
   // el barbero es el único que la marca completada o no-show.
   const yaTermino = a => hasEnded(a)
   const abierta = a => OPEN_STATUSES.includes(a.status)
-  const cerrada = a => ['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(a.status)
+  // EXPIRED va a Historial. Para el cliente la cita ya pasó; que el barbero
+  // todavía no la haya cerrado es asunto del barbero, no algo que el cliente
+  // deba ver entre sus próximas. Sin esta línea no caía en ninguna de las dos
+  // listas y desaparecía de la pantalla.
+  const cerrada = a => ['COMPLETED', 'CANCELLED', 'NO_SHOW', 'EXPIRED'].includes(a.status)
 
   const upcoming = appointments.filter(a => abierta(a) && !yaTermino(a))
     .sort((a, b) => new Date(a.date + 'T' + a.startTime) - new Date(b.date + 'T' + b.startTime))

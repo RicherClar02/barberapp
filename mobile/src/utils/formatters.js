@@ -57,6 +57,7 @@ export const getStatusColor = (status) => {
     COMPLETED: colors.success,
     CANCELLED: colors.error,
     NO_SHOW: '#9CA3AF',
+    EXPIRED: colors.warning,
   }
   return map[status] || '#9CA3AF'
 }
@@ -69,6 +70,7 @@ export const getStatusLabel = (status) => {
     COMPLETED: 'Completada',
     CANCELLED: 'Cancelada',
     NO_SHOW: 'No se presentó',
+    EXPIRED: 'Vencida',
   }
   return map[status] || status
 }

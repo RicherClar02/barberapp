@@ -22,6 +22,7 @@ const STATUS_BG = {
   COMPLETED: 'bg-green-50 border-l-4 border-green-400',
   CANCELLED: 'bg-gray-100 border-l-4 border-gray-300 opacity-60',
   NO_SHOW: 'bg-red-50 border-l-4 border-red-300 opacity-70',
+  EXPIRED: 'bg-warning-bg border-l-4 border-warning',
 }
 
 export default function BarberAgenda() {
