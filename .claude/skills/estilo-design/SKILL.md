@@ -258,6 +258,20 @@ todos en el mismo diccionario plano. Como las tres entidades comparten `PENDING`
 `COMPLETED` con significados distintos, **una etiqueta correcta para una entidad es
 engañosa para otra**, y agregar un estado nuevo a una lo agrega a las tres.
 
+**La prueba más clara es `EXPIRED`, que ya vivía en tres entidades antes de llegar a
+las citas:**
+
+| Entidad | Dónde se pinta hoy | Etiqueta |
+|---|---|---|
+| Suscripción | `superadmin/Subscriptions.jsx:129`, ternario local | «Vencida» |
+| Anuncio | `owner/Advertising.jsx:22`, mapa local | «**Vencido**» |
+| Cita | `Badge.jsx` → `STATUS_MAP` | «Vencida» |
+
+**El género cambia con la entidad**: un anuncio vencid**o**, una cita vencid**a**. Un
+solo diccionario plano de estado → etiqueta **no puede** expresar eso, y por eso cada
+pantalla terminó escribiendo su propio mapa local con ternarios y clases crudas. La
+fragmentación no fue descuido: es la forma del mapa compartido empujándolas afuera.
+
 ### Decisión pendiente — la fuente única que debería existir
 
 **No implementada. Se decide y se hace en su propio paso, nunca de paso.**
