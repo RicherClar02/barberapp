@@ -292,6 +292,8 @@ Tu misión es ayudar a los clientes a:
 5. Conocer horarios (get_hours)
 6. Responder preguntas generales (faq)
 7. Pedir aclaración cuando hay ambigüedad (clarify)
+8. Confirmar la reserva que le resumiste (confirm_booking)
+9. Descartar la reserva a medio armar (cancel_booking_draft)
 
 REGLAS DE DESAMBIGUACIÓN DE BARBEROS (OBLIGATORIAS):
 1. Solo existen los barberos listados arriba. NUNCA inventes barberos.
@@ -326,7 +328,7 @@ separá con saltos de línea reales.
 
 Responde ÚNICAMENTE con JSON válido en este formato:
 {
-  "intent": "book_appointment|cancel_appointment|check_availability|get_prices|get_hours|faq|clarify",
+  "intent": "book_appointment|confirm_booking|cancel_booking_draft|cancel_appointment|check_availability|get_prices|get_hours|faq|clarify",
   "barberId": "id exacto del barbero de la lista o null",
   "barberName": "nombre completo del barbero o null",
   "date": "YYYY-MM-DD o null",
@@ -335,8 +337,30 @@ Responde ÚNICAMENTE con JSON válido en este formato:
   "reply": "tu respuesta amigable al cliente"
 }
 
-Si el usuario quiere reservar, recopila barbero (resuelto a barberId), servicio, fecha y hora antes de confirmar.
-Si falta información o hay ambigüedad, pídela en el campo "reply" con intent "clarify".
+CÓMO SE ARMA UNA RESERVA (LEE ESTO ANTES DE RESPONDER UNA):
+El servidor ACUMULA los datos entre mensajes. NO necesitas que el cliente diga
+barbero, servicio, día y hora en una sola frase, y NO debes exigírselos juntos.
+1. Devuelve SOLO lo que el cliente acaba de decir en ESTE mensaje y deja el
+   resto en null. Si solo dijo "Ricardo", devuelve barberName "Ricardo" (con su
+   barberId si no hay ambigüedad) y los otros tres en null. El servidor recuerda
+   lo de antes.
+2. NUNCA repitas ni inventes un dato de mensajes anteriores: si lo pones y el
+   cliente no lo dijo ahora, pisas lo que el servidor ya tenía bien.
+3. Mientras falte algo, pide UNA sola cosa por mensaje con intent "clarify".
+4. Cuando el servidor tenga los cuatro datos te va a mostrar al cliente un
+   resumen numerado y le va a preguntar si está bien. Ese resumen lo escribe el
+   servidor, no tú.
+5. Si el cliente responde que sí a ese resumen ("sí", "dale", "confirmo",
+   "correcto"), usa intent "confirm_booking" y deja los cuatro campos en null.
+   Ese sí es lo ÚNICO que crea la cita.
+6. Si el cliente se arrepiente o quiere empezar de cero ("mejor no", "cancela
+   todo", "empecemos de nuevo"), usa intent "cancel_booking_draft".
+7. Si corrige un dato ("mejor el jueves"), devuelve solo ese dato con intent
+   "book_appointment" o "clarify": el servidor lo cambia y vuelve a preguntar.
+
+NUNCA digas que la cita quedó reservada, agendada o confirmada. Cuando escribes
+tu respuesta la cita todavía no existe: la crea el servidor después, y es el
+servidor el que escribe la confirmación. Si lo afirmas, tu respuesta se descarta.
 
 FECHA Y HORA ACTUALES (AUTORIDAD ABSOLUTA):
 Hoy es ${shopNow.dayName} ${shopNow.date} y en la barbería son las ${shopNow.time}.
@@ -356,6 +380,158 @@ es ${shopNow.date} entonces "time" tiene que ser posterior a ${shopNow.time}.
 Para decir si la barbería abre o cierra un día, buscá el nombre de ESE día en
 HORARIOS. Para "hoy" el día que tenés que buscar es ${shopNow.dayName}.
 `
+
+// ── BORRADOR DE RESERVA ────────────────────────────────────────────────
+// El modelo solo ve lo que el cliente escribió en ESTE turno, y ChatMessage
+// no guarda los campos estructurados: sin un borrador, exigir servicio +
+// barbero + fecha + hora simultáneos hacía que un "Ricardo" a secas no
+// llegara nunca a crear nada. El borrador los acumula entre turnos.
+
+// Una conversación de reserva dura minutos. Pasado ese tiempo el borrador se
+// trata como vacío: el riesgo real no es la fila huérfana (no bloquea cupos ni
+// la lee ningún endpoint) sino volver una semana después y que intente
+// reservar en una fecha ya pasada. Se aplica EN LECTURA, así que funciona
+// aunque el barrido diario nunca corra.
+const DRAFT_TTL_MINUTES = 30
+const DRAFT_MAX_AGE_DAYS = 7
+
+// Los cuatro datos que createAppointment necesita, más los nombres que se usan
+// para redactar. El id se guarda junto al nombre para no repetir el
+// emparejamiento difuso en cada turno siguiente.
+const DRAFT_FIELDS = ['serviceId', 'serviceName', 'barberId', 'barberName', 'date', 'startTime']
+
+// Intents en los que tiene sentido acumular. Una pregunta de precio puede traer
+// un serviceName y no queremos que eso dispare aclaraciones de reserva ni pise
+// el borrador; tampoco lo borramos, simplemente no lo tocamos.
+const DRAFT_INTENTS = new Set(['book_appointment', 'clarify', 'check_availability', 'confirm_booking'])
+
+// Intents que tiran el borrador a la basura.
+const DRAFT_CLEARING_INTENTS = new Set(['cancel_booking_draft', 'cancel_appointment'])
+
+const isDraftStale = (draft, now = new Date()) => {
+  if (!draft?.updatedAt) return true
+  return now.getTime() - new Date(draft.updatedAt).getTime() > DRAFT_TTL_MINUTES * 60 * 1000
+}
+
+// Completo = lo que createAppointment exige. serviceName y barberName no
+// cuentan: son para redactar, no para crear.
+const isDraftComplete = (draft) =>
+  !!(draft && draft.serviceId && draft.barberId && draft.date && draft.startTime)
+
+// Todo el arreglo cabe aquí: si este turno trajo un valor, pisa el guardado;
+// si no, sobrevive el guardado.
+const mergeDraft = (stored, incoming) => {
+  const merged = {}
+  for (const field of DRAFT_FIELDS) {
+    const fresh = incoming?.[field]
+    merged[field] = fresh != null && fresh !== '' ? fresh : (stored?.[field] ?? null)
+  }
+  return merged
+}
+
+// Qué campos cambió realmente este turno. Si el cliente toca un dato después
+// de que le pedimos confirmación, hay que volver a preguntar sobre lo nuevo.
+const draftChangedFields = (stored, merged) =>
+  DRAFT_FIELDS.filter(field => (stored?.[field] ?? null) !== merged[field])
+
+// Resuelve, una sola vez, lo que este turno trajo. Devuelve los valores ya
+// resueltos y —si algo no se pudo resolver— la aclaración que corresponde.
+// Los campos que sí resolvieron se devuelven igual: una ambigüedad de barbero
+// no puede hacer perder la fecha que el cliente acaba de dar.
+const resolveTurnValues = async (parsed, barbershopId, ctx) => {
+  const values = {}
+  let clarify = null
+
+  if (parsed.serviceName) {
+    const service = ctx.services.find(s =>
+      s.name.toLowerCase().includes(String(parsed.serviceName).toLowerCase())
+    )
+    if (service) {
+      values.serviceId = service.id
+      values.serviceName = service.name
+    } else {
+      clarify = `No encontré el servicio "${parsed.serviceName}". Los servicios disponibles son: ${ctx.services.map(s => s.name).join(', ')}`
+    }
+  }
+
+  if (parsed.barberId || parsed.barberName) {
+    const resolution = await resolveBarberForBooking(parsed, barbershopId, ctx)
+    if (resolution.barber) {
+      values.barberId = resolution.barber.id
+      values.barberName = resolution.barber.name
+    } else if (!clarify) {
+      clarify = resolution.error
+    }
+  }
+
+  if (parsed.date) values.date = parsed.date
+  if (parsed.time) values.startTime = parsed.time
+
+  return { values, clarify }
+}
+
+// El resumen que se le muestra al cliente antes de crear nada. Lo escribe el
+// código, igual que la confirmación: el modelo no puede resumir un estado que
+// no ve. Está redactado para NO disparar claimsBookingHappened — en este turno
+// todavía no hay cita, y afirmar lo contrario es justamente lo que el guardia
+// existe para impedir.
+const buildDraftSummary = (draft) => {
+  const dayName = DAY_NAMES[new Date(`${draft.date}T00:00:00.000Z`).getUTCDay()]
+  return [
+    '📋 Esto es lo que tengo para tu reserva:',
+    `1. Servicio: ${draft.serviceName}`,
+    `2. Barbero: ${draft.barberName}`,
+    `3. Día: ${dayName} ${draft.date}`,
+    `4. Hora: ${draft.startTime}`,
+    '¿Todo bien? Responde SÍ y la agendo, o dime qué quieres cambiar.',
+  ].join('\n')
+}
+
+// Lo que falta, en el orden en que conviene pedirlo.
+const missingDraftPrompt = (draft) => {
+  if (!draft.serviceId) return '¿Qué servicio quieres?'
+  if (!draft.barberId) return '¿Con cuál barbero quieres tu cita?'
+  if (!draft.date) return '¿Para qué día lo quieres?'
+  return '¿A qué hora te queda bien?'
+}
+
+// Lectura con TTL: un borrador vencido se borra y se trata como inexistente.
+const loadDraft = async (userId, barbershopId, now = new Date()) => {
+  const draft = await prisma.chatBookingDraft.findUnique({
+    where: { userId_barbershopId: { userId, barbershopId } },
+  })
+  if (!draft) return null
+  if (isDraftStale(draft, now)) {
+    await clearDraft(userId, barbershopId)
+    return null
+  }
+  return draft
+}
+
+const saveDraft = async (userId, barbershopId, merged, awaitingConfirmation) => {
+  const data = { ...merged, awaitingConfirmation }
+  return prisma.chatBookingDraft.upsert({
+    where: { userId_barbershopId: { userId, barbershopId } },
+    create: { userId, barbershopId, ...data },
+    update: data,
+  })
+}
+
+const clearDraft = async (userId, barbershopId) => {
+  // deleteMany y no delete: borrar un borrador que no existe es un no-op, no
+  // un P2025 que tumbe el turno del chat.
+  await prisma.chatBookingDraft.deleteMany({ where: { userId, barbershopId } })
+}
+
+// Barrido de mantenimiento. El TTL de lectura ya hace que un borrador viejo sea
+// inofensivo; esto solo evita que la tabla crezca sin techo.
+const purgeOldDrafts = async (now = new Date()) => {
+  const cutoff = new Date(now.getTime() - DRAFT_MAX_AGE_DAYS * 24 * 60 * 60 * 1000)
+  const { count } = await prisma.chatBookingDraft.deleteMany({
+    where: { updatedAt: { lt: cutoff } },
+  })
+  return count
+}
 
 const processMessage = async (userId, barbershopId, text) => {
   // Cargar historial reciente (últimos 10 mensajes)
@@ -400,22 +576,78 @@ const processMessage = async (userId, barbershopId, text) => {
     parsed.intent = 'faq'
   }
 
-  // Ejecutar acción según intent
-  // "clarify" nunca crea nada: solo devuelve la pregunta de aclaración
+  // Ejecutar acción según intent.
+  // La compuerta ya NO mira el turno: mira el borrador acumulado. Pedir los
+  // cuatro datos en una sola respuesta era lo que hacía que "Ricardo" a secas
+  // no llegara nunca a handleBookAppointment.
   let actionResult = null
-  if (
-    parsed.intent === 'book_appointment' &&
-    (parsed.barberId || parsed.barberName) &&
-    parsed.date && parsed.time && parsed.serviceName
-  ) {
-    actionResult = await handleBookAppointment(userId, barbershopId, parsed, ctx)
-    if (actionResult?.error) {
-      parsed.reply = actionResult.error
-      // La cita no se creó: degradar el intent para que el front no asuma éxito
+
+  if (DRAFT_CLEARING_INTENTS.has(parsed.intent)) {
+    await clearDraft(userId, barbershopId)
+  } else if (DRAFT_INTENTS.has(parsed.intent)) {
+    const stored = await loadDraft(userId, barbershopId)
+    const { values, clarify } = await resolveTurnValues(parsed, barbershopId, ctx)
+    const merged = mergeDraft(stored, values)
+    const changed = draftChangedFields(stored, merged)
+
+    if (clarify) {
+      // Algo de este turno no resolvió. Se guarda lo que sí resolvió —la fecha
+      // que acaba de dar no se pierde por una ambigüedad de barbero— y se
+      // vuelve a preguntar. Nada que confirmar mientras haya una duda abierta.
+      await saveDraft(userId, barbershopId, merged, false)
+      parsed.reply = clarify
       parsed.intent = 'clarify'
-    } else if (actionResult?.appointment) {
-      // Confirmación escrita por el código a partir de la fila creada.
-      parsed.reply = buildConfirmationReply(actionResult.appointment)
+    } else if (!isDraftComplete(merged)) {
+      await saveDraft(userId, barbershopId, merged, false)
+      // Si el modelo ya redactó la pregunta que falta, se respeta; si se quedó
+      // callado, la escribe el código para no dejar la conversación colgada.
+      if (!parsed.reply) {
+        parsed.reply = missingDraftPrompt(merged)
+        parsed.intent = 'clarify'
+      }
+    } else {
+      // Borrador completo. La cita se crea SOLO con un sí explícito del
+      // cliente sobre un resumen que ya vio. Ese paso es donde va a entrar el
+      // cobro del anticipo, así que existe desde ya aunque hoy solo pregunte.
+      const confirmedNow =
+        parsed.intent === 'confirm_booking' &&
+        stored?.awaitingConfirmation &&
+        changed.length === 0
+
+      if (confirmedNow) {
+        actionResult = await handleBookAppointment(
+          userId,
+          barbershopId,
+          {
+            serviceName: merged.serviceName,
+            barberId: merged.barberId,
+            barberName: merged.barberName,
+            date: merged.date,
+            time: merged.startTime,
+          },
+          ctx
+        )
+
+        if (actionResult?.error) {
+          // La cita no se creó: degradar el intent para que el front no asuma
+          // éxito. El borrador se conserva —los datos siguen siendo válidos—
+          // pero vuelve a exigir confirmación tras el arreglo.
+          await saveDraft(userId, barbershopId, merged, false)
+          parsed.reply = actionResult.error
+          parsed.intent = 'clarify'
+        } else if (actionResult?.appointment) {
+          // Confirmación escrita por el código a partir de la fila creada.
+          await clearDraft(userId, barbershopId)
+          parsed.reply = buildConfirmationReply(actionResult.appointment)
+          parsed.intent = 'book_appointment'
+        }
+      } else {
+        // Está completo pero nadie confirmó todavía —o el cliente cambió algo
+        // después de que preguntamos—: se resume y se pregunta de nuevo.
+        await saveDraft(userId, barbershopId, merged, true)
+        parsed.reply = buildDraftSummary(merged)
+        parsed.intent = 'clarify'
+      }
     }
   }
 
@@ -568,6 +800,19 @@ module.exports = {
   buildConfirmationReply,
   claimsBookingHappened,
   UNBACKED_CLAIM_REPLY,
+  // Borrador de reserva
+  mergeDraft,
+  isDraftStale,
+  isDraftComplete,
+  draftChangedFields,
+  resolveTurnValues,
+  buildDraftSummary,
+  missingDraftPrompt,
+  purgeOldDrafts,
+  DRAFT_TTL_MINUTES,
+  DRAFT_FIELDS,
+  DRAFT_INTENTS,
+  DRAFT_CLEARING_INTENTS,
   AI_FAILURE,
   AI_FAILURE_REPLY,
 }

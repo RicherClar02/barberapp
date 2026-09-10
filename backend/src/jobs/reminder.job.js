@@ -3,6 +3,7 @@ const prisma = require('../lib/prisma')
 const { sendAppointmentReminder } = require('../services/notification.service')
 const { expireStaleNotifications } = require('../services/waitlist.service')
 const { checkExpiredSubscriptions } = require('../services/subscription.service')
+const { purgeOldDrafts } = require('../services/chatbot.service')
 
 const toHHMM = (date) => {
   return `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`
@@ -85,6 +86,20 @@ const startReminderJob = () => {
     }
   })
   console.log('[Subscriptions] Cron job de vencimiento iniciado (diario a medianoche)')
+
+  // Diariamente a medianoche: borrar borradores de reserva abandonados.
+  // No es lo que hace segura la reserva —de eso se encarga el TTL de 30 min
+  // que se aplica al leer, y que funciona aunque este cron nunca corra—, solo
+  // evita que la tabla crezca sin techo.
+  cron.schedule('0 0 * * *', async () => {
+    try {
+      const borrados = await purgeOldDrafts()
+      if (borrados > 0) console.log(`[Chatbot] ${borrados} borrador(es) de reserva abandonados eliminados`)
+    } catch (error) {
+      console.error('[Chatbot] Error en cron de limpieza de borradores:', error.message)
+    }
+  })
+  console.log('[Chatbot] Cron job de limpieza de borradores iniciado (diario a medianoche)')
 }
 
 module.exports = { startReminderJob }

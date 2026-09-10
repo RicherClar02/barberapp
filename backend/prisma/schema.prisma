@@ -68,6 +68,7 @@ model User {
   waitlists               Waitlist[]
   chatMessages            ChatMessage[]
   termsAcceptances        TermsAcceptance[]
+  chatBookingDrafts       ChatBookingDraft[]
 
   @@map("users")
 }
@@ -141,6 +142,7 @@ model Barbershop {
   subscription    Subscription?
   offers          Offer[]
   chatMessages    ChatMessage[]
+  chatBookingDrafts ChatBookingDraft[]
 
   @@map("barbershops")
 }
@@ -533,4 +535,46 @@ model ChatMessage {
   barbershop   Barbershop @relation(fields: [barbershopId], references: [id])
 
   @@map("chat_messages")
+}
+
+// Borrador de reserva del chatbot: acumula, entre turnos, los cuatro datos que
+// hace falta reunir para crear una cita. Existe porque ChatMessage solo guarda
+// role/content/intent — los campos estructurados de un turno anterior no son
+// recuperables del historial, así que sin esta tabla el bot exigía servicio,
+// barbero, fecha y hora en una sola frase y una respuesta como "Ricardo" no
+// llegaba a ninguna parte.
+//
+// Se guarda el id resuelto Y el nombre: la resolución (emparejamiento difuso de
+// barbero, match de servicio) corre una sola vez, en el turno donde el dato
+// aparece, y el nombre queda para redactar los mensajes.
+model ChatBookingDraft {
+  id           String   @id @default(uuid())
+  userId       String
+  barbershopId String
+
+  serviceId    String?
+  serviceName  String?
+  barberId     String?
+  barberName   String?
+  date         String?  // "YYYY-MM-DD", tal como lo consume createAppointment
+  startTime    String?  // "HH:MM"
+
+  // El borrador completo NUNCA crea la cita por sí solo: primero el bot
+  // resume y pregunta, y esta marca recuerda que la pregunta ya se hizo.
+  // Aquí mismo va a entrar el cobro del anticipo, así que el paso existe
+  // desde ya aunque hoy solo pregunte.
+  awaitingConfirmation Boolean @default(false)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  barbershop   Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+
+  // Hace la escritura idempotente: dos mensajes en vuelo del mismo usuario
+  // actualizan un borrador, no crean dos.
+  @@unique([userId, barbershopId])
+  // El barrido diario busca por antigüedad.
+  @@index([updatedAt])
+  @@map("chat_booking_drafts")
 }
