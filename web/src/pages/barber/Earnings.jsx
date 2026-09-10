@@ -122,7 +122,7 @@ export default function BarberEarnings() {
 
       {/* Breakdown table */}
       <Card title="Desglose de cortes">
-        {isLoading ? <SkeletonTable rows={5} cols={4} /> : breakdown.length === 0 ? (
+        {isLoading ? <SkeletonTable rows={5} cols={5} /> : breakdown.length === 0 ? (
           <div className="text-center py-8">
             <span className="text-3xl">✂️</span>
             <p className="mt-2 text-secondary text-sm">Sin cortes registrados en este período</p>
@@ -132,7 +132,7 @@ export default function BarberEarnings() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-soft">
-                  {['Fecha y hora', 'Cliente', 'Servicio', 'Mi ganancia'].map(h => (
+                  {['Fecha', 'Hora', 'Servicio', 'Cliente', 'Mi ganancia'].map(h => (
                     <th key={h} className="text-left py-2 px-3 text-xs font-semibold text-secondary uppercase">{h}</th>
                   ))}
                 </tr>
@@ -140,12 +140,10 @@ export default function BarberEarnings() {
               <tbody>
                 {breakdown.map((item, i) => (
                   <tr key={i} className="border-b border-gray-soft/50 hover:bg-cream">
-                    <td className="py-2.5 px-3 text-xs text-secondary">
-                      <p>{formatDate(item.date)}</p>
-                      {item.startTime && <p>{formatTime(item.startTime)}</p>}
-                    </td>
-                    <td className="py-2.5 px-3 font-medium">{item.clientName || '—'}</td>
+                    <td className="py-2.5 px-3 text-xs text-secondary">{formatDate(item.date)}</td>
+                    <td className="py-2.5 px-3 text-xs text-secondary">{item.startTime ? formatTime(item.startTime) : '—'}</td>
                     <td className="py-2.5 px-3">{item.service || '—'}</td>
+                    <td className="py-2.5 px-3 font-medium">{item.clientName || '—'}</td>
                     <td className="py-2.5 px-3 font-semibold text-accent">{formatCurrency(item.amount || 0)}</td>
                   </tr>
                 ))}
