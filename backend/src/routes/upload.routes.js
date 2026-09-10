@@ -8,6 +8,7 @@ const {
   uploadBarbershopPhotoController,
   deleteBarbershopPhotoController,
   uploadBarberAvatarController,
+  uploadUserAvatarController,
   uploadServiceImageController,
   uploadAdMediaController
 } = require('../controllers/upload.controller')
@@ -135,6 +136,47 @@ router.delete('/barbershop-photo/:photoId', authMiddleware, requireRole('OWNER')
  *         description: Solo OWNER o BARBER
  */
 router.post('/barber-avatar/:barberId', authMiddleware, requireRole('OWNER', 'BARBER'), requireBarberSelf('barberId'), uploadAvatar.single('file'), uploadBarberAvatarController)
+
+/**
+ * @swagger
+ * /api/upload/user-avatar/{userId}:
+ *   post:
+ *     summary: Subir foto de perfil del propio usuario
+ *     description: >
+ *       Cualquier usuario autenticado sobre SU propia cuenta. Es la vía del
+ *       cliente y del dueño, que no tienen fila en Barber y por eso no pueden
+ *       usar barber-avatar. Reemplaza la foto anterior en Cloudinary.
+ *     tags: [Upload]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: "{ url, publicId }"
+ *       400:
+ *         description: No se recibió ningún archivo
+ *       403:
+ *         description: Solo la propia cuenta (o ADMIN)
+ *       404:
+ *         description: Usuario no encontrado
+ *       410:
+ *         description: La cuenta fue eliminada
+ */
+router.post('/user-avatar/:userId', authMiddleware, uploadAvatar.single('file'), uploadUserAvatarController)
 
 /**
  * @swagger

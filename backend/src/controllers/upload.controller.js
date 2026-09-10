@@ -1,5 +1,11 @@
 const prisma = require('../lib/prisma')
 const { safeMessage } = require('../utils/safeError')
+// Sin estos tres imports, TODOS los endpoints de subida lanzaban un
+// ReferenceError en cuanto pasaban los chequeos de permiso: el try/catch lo
+// tragaba y devolvía un 500 genérico, así que desde afuera parecía un fallo
+// de Cloudinary y no un archivo al que le faltaban los require.
+const cloudinary = require('../config/cloudinary')
+const { uploadToCloudinary, extractPublicId } = require('../middleware/upload.middleware')
 
 const uploadBarbershopLogoController = async (req, res) => {
   try {
@@ -82,6 +88,50 @@ const uploadBarberAvatarController = async (req, res) => {
   }
 }
 
+// Avatar de cualquier usuario autenticado sobre SU propia cuenta. Es la vía
+// que usan el cliente y el dueño, que no tienen fila en Barber y por eso no
+// pueden pasar por barber-avatar. Un barbero puede usar cualquiera de las dos:
+// las dos terminan escribiendo user.avatar.
+const uploadUserAvatarController = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No se recibió ningún archivo' })
+
+    // Solo su propia cuenta. ADMIN pasa, igual que en ownership.middleware.
+    const esPropia = req.params.userId === req.user.id
+    if (!esPropia && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ message: 'Sin permiso' })
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.params.userId },
+      select: { id: true, avatar: true, deletedAt: true },
+    })
+    if (!user) return res.status(404).json({ message: 'Usuario no encontrado' })
+    // Una cuenta anonimizada no vuelve a tener foto: la fila se conserva solo
+    // porque las citas y los pagos la referencian.
+    if (user.deletedAt) return res.status(410).json({ message: 'Esta cuenta fue eliminada' })
+
+    const { url, publicId } = await uploadToCloudinary(req.file.buffer, { folder: 'user-avatars' })
+    await prisma.user.update({ where: { id: user.id }, data: { avatar: url } })
+
+    // El avatar anterior se borra DESPUÉS de que el nuevo quedó guardado: si se
+    // borrara antes y la subida fallara, el usuario se quedaría sin ninguno.
+    // Que el borrado falle no invalida la subida, así que no tumba la respuesta.
+    const anterior = user.avatar && extractPublicId(user.avatar)
+    if (anterior) {
+      try {
+        await cloudinary.uploader.destroy(anterior)
+      } catch (error) {
+        console.error(`[upload] no se pudo borrar el avatar anterior (userId=${user.id}):`, error.message)
+      }
+    }
+
+    res.status(200).json({ url, publicId })
+  } catch (error) {
+    res.status(500).json({ message: safeMessage(error) })
+  }
+}
+
 const uploadServiceImageController = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No se recibió ningún archivo' })
@@ -130,6 +180,7 @@ module.exports = {
   uploadBarbershopPhotoController,
   deleteBarbershopPhotoController,
   uploadBarberAvatarController,
+  uploadUserAvatarController,
   uploadServiceImageController,
   uploadAdMediaController
 }
