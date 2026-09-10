@@ -39,7 +39,7 @@ export default function BarbershopCard({ shop, onPress, distance }) {
         </View>
         <Text style={styles.city} numberOfLines={1}>📌 {shop?.city || shop?.address || '—'}</Text>
         <View style={styles.row}>
-          <Text style={styles.rating}>⭐ {(shop?.rating || 0).toFixed(1)}</Text>
+          <Text style={styles.rating}>⭐ {(shop?.avgRating || 0).toFixed(1)}</Text>
           <Text style={styles.reviews}>({shop?._count?.reviews || 0} reseñas)</Text>
         </View>
       </View>
