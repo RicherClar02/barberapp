@@ -23,11 +23,20 @@ Paleta marrón cuero. **Fuente única en cada lado — no hay una tercera.**
 | gray-soft | `#E8E0D8` | `-gray-soft` | `colors.graySoft` |
 | black-soft | `#1A1A1A` | `-black-soft` | `colors.black` |
 | success | `#27AE60` | `-success` | `colors.success` |
+| warning | `#A65E2E` | `-warning` | `colors.warning` |
+| warning-bg | `#F0DFD0` | `-warning-bg` | `colors.warningBg` |
 | destructive | `#EF4444` | `-destructive` | `colors.destructive` |
 | whatsapp | `#25D366` | `-whatsapp` | `colors.whatsapp` |
 
 - **web:** `web/tailwind.config.js` → `theme.extend.colors`
 - **móvil:** `mobile/src/constants/theme.js` → `export const colors`
+
+**`warning` es «requiere acción», no «error».** Es el hueco que faltaba entre
+`success` y `destructive`: avisos, suscripción por vencer, confirmaciones pendientes y
+citas vencidas. Terracota — `secondary` corrido hacia el rojo — para que pertenezca a
+la paleta marrón cuero y no se confunda con el ámbar de `PENDING` ni con `destructive`.
+`warning` es el texto y el ícono; `warning-bg` es el fondo de la etiqueta.
+Lo que está roto va en `destructive`; lo que hay que resolver va en `warning`.
 
 Tipografía: **Poppins** títulos, **Inter** cuerpo.
 web `font-heading` / `font-body`; móvil `typography.h1|h2|h3|body|bodyBold|caption`
@@ -230,6 +239,58 @@ Los valores difieren entre sí (ej. `PENDING.text` es `#92400E` en `theme.js` y
 `#854D0E` en `Badge.jsx`), y las dos `getStatusColor()` tienen el mismo nombre con
 contratos distintos. Al tocar un estado, **usa la fuente que ya usa ese archivo** y
 no consolides nada: es un cambio con su propio riesgo, y va en su propio paso.
+
+**Y el problema de fondo: dos de esas cuatro fuentes están muertas, y la única viva de
+web mezcla entidades.**
+
+| Fuente | ¿Se usa? | Entidades que atiende |
+|---|---|---|
+| `web/.../Badge.jsx` → `STATUS_MAP` | Sí, 8 llamadas | **cita + pago + suscripción**, mezcladas |
+| `web/utils/formatters.js` → `getStatusColor()` | **No, cero llamadas** | solo cita |
+| `web/utils/formatters.js` → `getStatusLabel()` | **No, cero llamadas** | solo cita |
+| `mobile/constants/theme.js` → `STATUS_COLORS` | Sí, 4 llamadas | solo cita |
+| `mobile/utils/formatters.js` → `getStatusColor()` | **No, cero llamadas** | solo cita |
+| `mobile/utils/formatters.js` → `getStatusLabel()` | Sí, 4 llamadas | solo cita |
+
+`STATUS_MAP` recibe estados de cita (`PENDING`, `CONFIRMED`, `COMPLETED`…), de pago
+(`REFUNDED`, `REFUND_PENDING`, desde `owner/Finances.jsx`) y de suscripción (`ACTIVE`),
+todos en el mismo diccionario plano. Como las tres entidades comparten `PENDING` y
+`COMPLETED` con significados distintos, **una etiqueta correcta para una entidad es
+engañosa para otra**, y agregar un estado nuevo a una lo agrega a las tres.
+
+### Decisión pendiente — la fuente única que debería existir
+
+**No implementada. Se decide y se hace en su propio paso, nunca de paso.**
+
+Un mapa **por plataforma**, partido **por entidad**, que devuelva **nombres de token**
+— nunca un hex, nunca clases de Tailwind:
+
+```
+web/src/constants/estados.js     mobile/src/constants/estados.js
+  CITA:         { EXPIRED: { fondo: 'warning-bg', texto: 'warning', etiqueta: 'Vencida' }, ... }
+  PAGO:         { REFUND_PENDING: { ... }, ... }
+  SUSCRIPCION:  { ACTIVE: { ... }, ... }
+```
+
+Tres reglas que hacen que valga la pena:
+
+1. **El valor es el nombre del token, no el color.** Así el mapa no puede desviarse de
+   la paleta: si un estado pide un token que no existe, revienta al escribirlo, no en
+   producción.
+2. **Una entrada por entidad.** `PENDING` de una cita y `PENDING` de un pago son dos
+   filas distintas, con etiquetas distintas.
+3. **Un mapa por plataforma, no uno compartido.** Web y móvil no comparten build ni
+   escala; que las dos tablas se parezcan es responsabilidad de quien las edita, y el
+   parecido se revisa leyendo dos archivos cortos.
+
+La migración es el trabajo real: hay que repasar las 16 llamadas vivas y decidir, en
+cada una, de qué entidad es el estado que está pintando.
+
+**Los dos colores ajenos a la paleta.** `success` (`#27AE60`) y `destructive`
+(`#EF4444`) vienen de librería, no de la familia marrón cuero: `#EF4444` es el rojo de
+Tailwind. Conviven con la paleta pero no salen de ella. **Revisarlos después de
+publicar**, no antes: hoy están en producción y cambiarlos toca todos los estados a la
+vez.
 
 ## Cómo trabajamos
 

@@ -10,6 +10,11 @@ export const colors = {
   error: '#C0392B',
   destructive: '#EF4444',
   success: '#27AE60',
+  // warning = "requiere acción", no error. Terracota: secondary corrido hacia
+  // el rojo, para que pertenezca a la paleta marrón cuero y no se confunda ni
+  // con PENDING ni con destructive.
+  warning: '#A65E2E',
+  warningBg: '#F0DFD0',
   whatsapp: '#25D366',
   black: '#1A1A1A',
   textSecondary: '#9E8670',

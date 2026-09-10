@@ -12,6 +12,11 @@ export default {
         'gray-soft': '#E8E0D8',
         'black-soft': '#1A1A1A',
         success: '#27AE60',
+        // warning = "requiere acción", no error. Terracota: secondary corrido
+        // hacia el rojo, para que pertenezca a la paleta marrón cuero y no se
+        // confunda ni con PENDING ni con destructive.
+        warning: '#A65E2E',
+        'warning-bg': '#F0DFD0',
         destructive: '#EF4444',
         whatsapp: '#25D366',
       },
