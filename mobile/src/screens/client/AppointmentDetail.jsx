@@ -68,7 +68,9 @@ export default function AppointmentDetail({ route, navigation }) {
         )}
 
         {/* Contact */}
-        {(appt.barbershop?.phone || appt.barbershop?.whatsapp || (appt.barbershop?.lat && appt.barbershop?.lng)) && (
+        {/* Barbershop no tiene columna whatsapp: el mismo phone sirve para
+            llamar y para abrir la conversación de WhatsApp. */}
+        {(appt.barbershop?.phone || (appt.barbershop?.lat && appt.barbershop?.lng)) && (
           <View style={styles.contactCard}>
             <Text style={styles.contactTitle}>Contactar barbería</Text>
             <View style={styles.contactBtns}>
@@ -81,10 +83,10 @@ export default function AppointmentDetail({ route, navigation }) {
                   <Text style={styles.contactBtnText}>Llamar</Text>
                 </TouchableOpacity>
               )}
-              {appt.barbershop?.whatsapp && (
+              {appt.barbershop?.phone && (
                 <TouchableOpacity
                   style={[styles.contactBtn, styles.contactBtnWa]}
-                  onPress={() => Linking.openURL(`https://wa.me/${appt.barbershop.whatsapp.replace(/\D/g, '')}`)}
+                  onPress={() => Linking.openURL(`https://wa.me/${appt.barbershop.phone.replace(/\D/g, '')}`)}
                 >
                   <Text style={styles.contactBtnIcon}>💬</Text>
                   <Text style={[styles.contactBtnText, { color: '#25D366' }]}>WhatsApp</Text>
