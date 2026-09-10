@@ -21,17 +21,16 @@ export default function ProfileScreen({ navigation }) {
   const [form, setForm] = useState({
     name: user?.name || '',
     phone: user?.phone || '',
-    whatsapp: user?.whatsapp || '',
+    whatsapp: user?.whatsappNumber || '',
     department: user?.department || null,
     city: user?.city || null,
   })
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
-  const { data: loyaltyData } = useQuery({
-    queryKey: ['loyalty', user?.id],
-    queryFn: () => api.get('/api/loyalty/my').then(r => r.data),
-    enabled: !!user?.id,
-  })
+  // La sección de fidelización queda oculta hasta que exista la ruta que la
+  // alimenta: GET /api/loyalty/my no está montada en el backend. loyalty.routes.js
+  // solo expone /:shopId, /shop/:shopId/clients y /redeem, así que esta llamada
+  // caía en la ruta comodín con shopId="my". Una sección vacía se lee como rota.
 
   const { data: prefsData, refetch: refetchPrefs } = useQuery({
     queryKey: ['notif-prefs'],
@@ -39,7 +38,6 @@ export default function ProfileScreen({ navigation }) {
     enabled: !!user?.id,
   })
 
-  const loyalty = loyaltyData?.loyalty || loyaltyData || []
   const prefs = prefsData?.preferences || prefsData || {}
 
   const updateMutation = useMutation({
@@ -66,12 +64,12 @@ export default function ProfileScreen({ navigation }) {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
     if (status !== 'granted') return
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true, aspect: [1, 1], quality: 0.8,
     })
     if (!result.canceled && result.assets?.[0]) {
       const fd = new FormData()
-      fd.append('avatar', { uri: result.assets[0].uri, type: 'image/jpeg', name: 'avatar.jpg' })
+      fd.append('file', { uri: result.assets[0].uri, type: 'image/jpeg', name: 'avatar.jpg' })
       try {
         const res = await api.post(`/api/upload/user-avatar/${user?.id}`, fd, {
           headers: { 'Content-Type': 'multipart/form-data' },
@@ -124,28 +122,6 @@ ${uri}`)
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Fidelización */}
-        {loyalty.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🎁 Mi fidelización</Text>
-            {loyalty.map(l => {
-              const pct = Math.min((l.currentCuts / l.requiredCuts) * 100, 100)
-              return (
-                <View key={l.id} style={styles.loyaltyCard}>
-                  <View style={styles.loyaltyInfo}>
-                    <Text style={styles.loyaltyShop}>{l.barbershop?.name}</Text>
-                    <Text style={styles.loyaltyProgress}>
-                      {l.currentCuts} de {l.requiredCuts} cortes → próximo gratis 🎁
-                    </Text>
-                  </View>
-                  <View style={styles.loyaltyBar}>
-                    <View style={[styles.loyaltyBarFill, { width: `${pct}%` }]} />
-                  </View>
-                </View>
-              )
-            })}
-          </View>
-        )}
 
         {/* Mi cuenta */}
         <View style={styles.section}>
@@ -156,7 +132,7 @@ ${uri}`)
                 updateMutation.mutate(form)
               } else {
                 setForm({
-                  name: user?.name || '', phone: user?.phone || '', whatsapp: user?.whatsapp || '',
+                  name: user?.name || '', phone: user?.phone || '', whatsapp: user?.whatsappNumber || '',
                   department: user?.department || null, city: user?.city || null,
                 })
                 setEditing(true)
@@ -186,7 +162,7 @@ ${uri}`)
                 <FieldView label="Nombre" value={user?.name} />
                 <FieldView label="Email" value={user?.email} />
                 <FieldView label="Teléfono" value={user?.phone || 'No configurado'} />
-                <FieldView label="WhatsApp" value={user?.whatsapp || 'No configurado'} />
+                <FieldView label="WhatsApp" value={user?.whatsappNumber || 'No configurado'} />
                 <FieldView label="Ubicación" value={user?.city ? `${user.city}${user.department ? `, ${user.department}` : ''}` : 'No configurada'} />
               </>
             )}
