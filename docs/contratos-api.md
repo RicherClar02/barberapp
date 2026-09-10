@@ -167,10 +167,29 @@ allowlist del servicio lo incluye. Lo que fallaba era la relectura.
 
 ### Web — barber/Earnings
 
-| Línea | Leía | Real |
-|---|---|---|
-| 40 | `earningsData?.breakdown` | `earningsData.earnings.breakdown` |
-| 35 | `GET /api/loyalty/barber/:id` | ver 1.1 |
+| Línea | Leía | Real | Estado |
+|---|---|---|---|
+| 35 | `GET /api/loyalty/barber/:id` | ver 1.1 | sección oculta |
+| 40 | `earningsData?.breakdown` | `earningsData.earnings.breakdown` | **sin corregir, a propósito** |
+
+La tabla de cortes de esta pantalla está mal en dos niveles a la vez, y por eso no se
+tocó en esta tanda:
+
+1. La ruta del arreglo: `breakdown` cuelga de `earnings`, no de la raíz.
+2. Los campos de cada fila también están cambiados. El servicio devuelve
+   `{ date, startTime, amount, clientName, service }` y la tabla lee `item.serviceName`,
+   `item.price` y `item.barberEarning`, que no existen.
+
+Corregir solo la ruta haría aparecer filas con tres columnas vacías, que es peor que
+la lista vacía de hoy. Y corregir los campos obliga a decidir qué significan las
+columnas *Precio* y *Mi ganancia*, porque `amount` **ya es la parte del barbero**
+(`totalPrice * barberPercentage / 100`), no el precio del servicio. Eso es una
+decisión de producto, no un renombre.
+
+**Consecuencia para el móvil:** `breakdown` es el dato que debería alimentar la lista
+de cortes de `EarningsScreen`, en vez de la ruta inexistente
+`/api/payments/barber/:id`. No se hizo porque el patrón equivalente de la web también
+está roto: no había de dónde copiarlo.
 
 ### Web — barber/MyCard
 
@@ -178,15 +197,26 @@ allowlist del servicio lo incluye. Lo que fallaba era la relectura.
 |---|---|---|
 | 36 | `cardData?.barbershop` | `cardData.barber.barbershopName` |
 
-### Web — owner/Dashboard y superadmin/Dashboard
+### Web — owner/Dashboard y superadmin/Dashboard: **falsa alarma**
 
-| Archivo:línea | Leía | Real |
-|---|---|---|
-| `web/src/pages/owner/Dashboard.jsx:294` | `b.rating` | `b.avgRating` |
-| `web/src/pages/superadmin/Dashboard.jsx:128` | `b.rating` | `b.avgRating` |
+Estaban en la lista como `b.rating` → `b.avgRating`. **Es incorrecto: los dos leen
+bien y no se tocaron.**
 
-`web/src/pages/owner/Dashboard.jsx:106` ya usaba `overview?.avgRating` bien: viene de
-otro endpoint (`/api/analytics/shop/:id/overview`).
+No se alimentan de `/api/barbers/shop/:shopId` sino de analytics, que sí expone el
+campo como `rating`:
+
+- `web/src/pages/owner/Dashboard.jsx:294` viene de `/api/analytics/shop/:id/barbers`
+  → `backend/src/services/analytics.service.js:270` devuelve `rating`.
+- `web/src/pages/superadmin/Dashboard.jsx:128` viene de `/api/analytics/platform`
+  → `backend/src/services/analytics.service.js:319` devuelve `rating`.
+
+Renombrarlos a `avgRating` habría roto dos pantallas que funcionan. La lección es que
+`rating` vs `avgRating` depende del endpoint, no del concepto: los servicios de
+analytics promedian y publican `rating`; `barbershop.service.js` y `barber.service.js`
+publican `avgRating`.
+
+`web/src/pages/owner/Dashboard.jsx:106` ya usaba `overview?.avgRating` bien, desde
+`/api/analytics/shop/:id/overview`.
 
 ---
 
@@ -219,3 +249,21 @@ Dos deducciones que conviene confirmar cuando haya un backend corriendo:
   responde 400, 404 o una lista vacía.
 - `stats.avgTicket` y `card.services` no están en el servicio correspondiente. No se
   descarta que existan en otro endpoint que la pantalla debería llamar y no llama.
+
+## 6. Dato de relleno encontrado de paso — sin corregir
+
+`web/src/pages/barber/Earnings.jsx:44-61` arma el gráfico con **`Math.random()`**:
+
+```js
+if (period === 'week') {
+  return Array.from({ length: 7 }, (_, i) => ({
+    label: format(subDays(new Date(), 6 - i), 'EEE', { locale: es }),
+    ganancia: Math.floor(Math.random() * 80000),
+  }))
+}
+```
+
+Los tres períodos (hoy, semana, mes) generan números al azar en cada render. Esto
+explica que la pantalla mostrara ganancias de semanas 2, 3 y 4 sin una sola cita en la
+base. No se tocó porque excede el alcance de un renombre: hay que decidir con qué dato
+real se dibuja el gráfico.
