@@ -33,7 +33,6 @@ export default function BarberMyCard() {
   })
 
   const barber = cardData?.barber || {}
-  const barbershop = cardData?.barbershop || {}
   const upcomingAppts = cardData?.upcomingAppointments || []
   const recentReviews = cardData?.recentReviews || []
   const todayStats = cardData?.today || {}
@@ -117,7 +116,7 @@ export default function BarberMyCard() {
               ))}
               <span className="text-sm ml-1">{avgRating} ({recentReviews.length || barber.totalReviews || 0} reseñas)</span>
             </div>
-            <p className="text-cream/60 text-xs mt-1">✂️ {barbershop.name || '—'}</p>
+            <p className="text-cream/60 text-xs mt-1">✂️ {barber.barbershopName || '—'}</p>
           </div>
         </div>
 
