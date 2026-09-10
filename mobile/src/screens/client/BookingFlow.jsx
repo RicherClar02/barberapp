@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, StatusBar, Alert, ActivityIndicator,
+  TextInput, StatusBar, Alert, ActivityIndicator, Image,
 } from 'react-native'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { format } from 'date-fns'
@@ -205,11 +205,18 @@ export default function BookingFlow({ route, navigation }) {
                 style={[styles.barberItem, barber?.id === b.id && styles.barberItemSelected]}
                 onPress={() => setBarber(b)}
               >
-                <Text style={{ fontSize: 28 }}>✂️</Text>
+                {b.user?.avatar
+                  ? <Image source={{ uri: b.user.avatar }} style={styles.barberItemAvatar} />
+                  : (
+                    <View style={[styles.barberItemAvatar, styles.barberItemAvatarFallback]}>
+                      <Text style={{ fontSize: 28 }}>✂️</Text>
+                    </View>
+                  )
+                }
                 <View style={{ flex: 1, marginLeft: spacing.md }}>
-                  <Text style={styles.barberItemName}>{b.name}</Text>
+                  <Text style={styles.barberItemName}>{b.user?.name}</Text>
                   <Text style={styles.barberItemSub}>
-                    ⭐ {(b.rating || 0).toFixed(1)} · {b.specialty || 'Barbero'}
+                    ⭐ {(b.avgRating || 0).toFixed(1)} · {b.specialty || 'Barbero'}
                   </Text>
                 </View>
                 {barber?.id === b.id && (
@@ -460,6 +467,8 @@ const styles = StyleSheet.create({
     borderWidth: 2, borderColor: colors.graySoft, ...shadows.shadowLight,
   },
   barberItemSelected: { borderColor: colors.accent, backgroundColor: colors.accent + '10' },
+  barberItemAvatar: { width: 48, height: 48, borderRadius: 24 },
+  barberItemAvatarFallback: { backgroundColor: colors.cream, alignItems: 'center', justifyContent: 'center' },
   barberItemName: { fontSize: fontSize.sm, fontWeight: '700', color: colors.primary },
   barberItemSub: { fontSize: fontSize.xs, color: colors.secondary, marginTop: 2 },
   dayChip: {
