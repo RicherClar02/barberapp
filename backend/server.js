@@ -171,6 +171,12 @@ app.get('/', (req, res) => {
   res.json({ message: 'Estilo API v1.0.0 — Proyecto de Grado 2025 💈' })
 })
 
+// Un servicio está configurado solo si TODAS las variables que necesita para
+// arrancar están puestas. Con una sola a medias la feature falla igual, y el
+// listado diría que está lista.
+const configured = (...vars) =>
+  vars.every(v => v && String(v).trim()) ? 'configured' : 'not configured'
+
 // Health check
 app.get('/health', async (req, res) => {
   let dbStatus = 'connected'
@@ -192,15 +198,32 @@ app.get('/health', async (req, res) => {
     timestamp: new Date(),
     version: '1.0.0',
     database: dbStatus,
+    // Cada entrada comprueba EXACTAMENTE la misma condición que usa la feature
+    // para decidir si puede trabajar. Dos de estas miraban una variable que no
+    // lee nadie más —TWILIO_ACCOUNT_SID y FIREBASE_PROJECT_ID, cuando el
+    // servicio usa TWILIO_SID y FIREBASE_SERVER_KEY— así que reportaban "not
+    // configured" con el servicio bien configurado. Este endpoint es la
+    // herramienta de diagnóstico en producción: si miente sobre dos servicios,
+    // no se puede confiar en lo que dice de los otros cuatro.
     services: {
-      stripe: process.env.STRIPE_SECRET_KEY ? 'configured' : 'not configured',
-      epayco: process.env.EPAYCO_API_KEY ? 'configured' : 'not configured',
-      twilio: process.env.TWILIO_ACCOUNT_SID ? 'configured' : 'not configured',
-      firebase: process.env.FIREBASE_PROJECT_ID ? 'configured' : 'not configured',
-      cloudinary: process.env.CLOUDINARY_CLOUD_NAME ? 'configured' : 'not configured',
+      stripe: configured(process.env.STRIPE_SECRET_KEY),
+      epayco: configured(process.env.EPAYCO_API_KEY),
+      // notification.service.js exige las dos para instanciar el cliente.
+      twilio: configured(process.env.TWILIO_SID, process.env.TWILIO_TOKEN),
+      // Ojo: tener la key no significa que el push funcione — el envío real
+      // sigue siendo un TODO en notification.service.js. Esto reporta la
+      // configuración, que es lo que este listado promete.
+      firebase: configured(process.env.FIREBASE_SERVER_KEY),
+      // cloudinary.config() necesita las tres: con solo cloud_name la subida
+      // falla igual, así que reportar "configured" con una sola era engañoso.
+      cloudinary: configured(
+        process.env.CLOUDINARY_CLOUD_NAME,
+        process.env.CLOUDINARY_API_KEY,
+        process.env.CLOUDINARY_API_SECRET
+      ),
       // El chatbot faltaba en este listado: era imposible confirmar desde
       // afuera si la key estaba puesta en el hosting sin entrar al dashboard.
-      anthropic: process.env.ANTHROPIC_API_KEY ? 'configured' : 'not configured'
+      anthropic: configured(process.env.ANTHROPIC_API_KEY)
     }
   })
 })

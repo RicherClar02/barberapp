@@ -44,22 +44,12 @@ const documentadas = () =>
       .filter(Boolean)
   )
 
-// Dos nombres que NO se documentan a propósito, porque no son variables que
-// falten: son nombres equivocados. El único código que los lee es el listado
-// de /health, y el resto del backend usa otro nombre para lo mismo. Ponerlos
-// en .env.example convertiría el error en contrato.
-const NOMBRES_EQUIVOCADOS = {
-  TWILIO_ACCOUNT_SID: 'notification.service.js usa TWILIO_SID',
-  FIREBASE_PROJECT_ID: 'notification.service.js usa FIREBASE_SERVER_KEY',
-}
-
 test('toda variable que el backend lee está en .env.example', () => {
   const usadas = leidas()
   const enEjemplo = documentadas()
 
   const sinDocumentar = [...usadas.keys()]
     .filter(n => !enEjemplo.has(n))
-    .filter(n => !(n in NOMBRES_EQUIVOCADOS))
     .sort()
 
   assert.deepEqual(
@@ -73,21 +63,6 @@ test('.env.example no documenta variables que ya nadie lee', () => {
   const usadas = leidas()
   const sobrantes = [...documentadas()].filter(n => !usadas.has(n)).sort()
   assert.deepEqual(sobrantes, [], `Sobran en .env.example: ${sobrantes.join(', ')}`)
-})
-
-// Deja el error a la vista en vez de enterrarlo en una lista de excepciones:
-// si alguien corrige server.js, este test avisa que ya puede borrar la entrada.
-test('los dos nombres equivocados siguen viviendo solo en el listado de /health', () => {
-  const usadas = leidas()
-  for (const [nombre, correcto] of Object.entries(NOMBRES_EQUIVOCADOS)) {
-    const sitios = usadas.get(nombre)
-    if (!sitios) continue // ya lo arreglaron: quita la entrada de NOMBRES_EQUIVOCADOS
-    assert.deepEqual(
-      [...sitios],
-      ['server.js'],
-      `${nombre} se empezó a usar fuera de /health, pero ${correcto}`
-    )
-  }
 })
 
 // Las tres que se documentaron en este barrido tienen un valor por defecto en
