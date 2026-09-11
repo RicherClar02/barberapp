@@ -35,5 +35,9 @@ Thumbs.db
 graphify-out/
 _deprecated/
 
+# Kit de identidad. Es la fuente de la marca, no un artefacto del build:
+# al repo solo entran las piezas ya derivadas (mobile/assets, web/public).
+brand-assets/
+
 # Config local de Claude Code
 .claude/settings.local.json
