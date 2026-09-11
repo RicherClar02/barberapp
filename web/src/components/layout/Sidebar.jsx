@@ -93,8 +93,12 @@ export default function Sidebar() {
       </button>
 
       {/* Logo */}
+      {/* Acá va la marca sola, no el logo horizontal: el wordmark del logo es
+          #492808 y el sidebar es bg-primary #4A2C0A — 1.04:1, invisible. El oro
+          de la marca sobre ese mismo fondo da 8.33:1. El nombre sigue como
+          texto, que es lo que se lee en blanco. */}
       <div className={`flex items-center gap-3 px-4 py-6 border-b border-white/10 ${collapsed ? 'justify-center' : ''}`}>
-        <span className="text-accent text-2xl">✂️</span>
+        <img src="/logo-mark.png" alt="Estilo" className="h-8 w-8 object-contain shrink-0" />
         {!collapsed && (
           <span className="text-white font-bold text-lg font-heading tracking-wide">ESTILO</span>
         )}

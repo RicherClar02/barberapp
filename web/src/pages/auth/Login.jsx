@@ -83,11 +83,15 @@ export default function Login() {
     <div className="min-h-screen bg-cream flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
+        {/* El logo horizontal va acá y no en el sidebar: su wordmark es oscuro
+            y sobre el cream del login da 11.52:1. Ya trae el nombre, así que
+            reemplaza al par tile + título. */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-2xl mb-4 shadow-lg">
-            <span className="text-accent text-3xl">✂</span>
-          </div>
-          <h1 className="text-3xl font-bold text-primary font-heading">ESTILO</h1>
+          <img
+            src="/logo-horizontal.png"
+            alt="Estilo"
+            className="h-16 mx-auto mb-2 object-contain"
+          />
           <p className="text-secondary mt-1 text-sm">Panel de administración</p>
         </div>
 
